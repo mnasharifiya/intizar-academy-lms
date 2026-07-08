@@ -6,6 +6,7 @@ import UsersPage from "./pages/admin/Users";
 import CoursesPage from "./pages/admin/Courses";
 import GroupsPage from "./pages/admin/Groups";
 import StudentDashboard from "./pages/student/Dashboard";
+import StudentGrades from "./pages/student/Grades";
 import { loadAllData } from "./lib/api";
 
 function App() {
@@ -51,9 +52,19 @@ function App() {
       setPage={setPage}
       onLogout={() => setCurrentUser(null)}
     >
-      {currentUser.role === "student" && (
+      {currentUser.role === "student" && page === "dashboard" && (
         <StudentDashboard user={currentUser} data={data} />
       )}
+
+      {currentUser.role === "student" && page === "grades" && (
+        <StudentGrades user={currentUser} data={data} />
+      )}
+
+      {currentUser.role === "student" &&
+        page !== "dashboard" &&
+        page !== "grades" && (
+          <StudentDashboard user={currentUser} data={data} />
+        )}
 
       {currentUser.role !== "student" && page === "dashboard" && (
         <AdminDashboard data={data} />
@@ -81,3 +92,4 @@ function App() {
 }
 
 export default App;
+
