@@ -9,8 +9,10 @@ import GradeManagement from "./pages/admin/GradeManagement";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
 import StudentLearning from "./pages/student/Learning";
+import StudentAssignments from "./pages/student/Assignments";
 import InstructorTeaching from "./pages/instructor/Teaching";
 import InstructorGroups from "./pages/instructor/Groups";
+import InstructorAssignments from "./pages/instructor/Assignments";
 import { loadAllData } from "./lib/api";
 
 function App() {
@@ -59,6 +61,10 @@ function App() {
         return <StudentLearning user={currentUser} data={data} />;
       }
 
+      if (page === "assignments") {
+        return <StudentAssignments user={currentUser} data={data} setData={setData} />;
+      }
+
       if (page === "grades") {
         return <StudentGrades user={currentUser} data={data} />;
       }
@@ -73,6 +79,10 @@ function App() {
 
       if (page === "groups") {
         return <InstructorGroups user={currentUser} data={data} />;
+      }
+
+      if (page === "assignments") {
+        return <InstructorAssignments user={currentUser} data={data} setData={setData} />;
       }
 
       if (page === "grades") {
@@ -112,4 +122,5 @@ function App() {
 }
 
 export default App;
+
 
