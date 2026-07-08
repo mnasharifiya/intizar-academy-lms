@@ -5,6 +5,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/Users";
 import CoursesPage from "./pages/admin/Courses";
 import GroupsPage from "./pages/admin/Groups";
+import GradeManagement from "./pages/admin/GradeManagement";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
 import { loadAllData } from "./lib/api";
@@ -82,14 +83,20 @@ function App() {
         <GroupsPage data={data} setData={setData} />
       )}
 
+      {currentUser.role !== "student" && page === "grades" && (
+        <GradeManagement user={currentUser} data={data} setData={setData} />
+      )}
+
       {currentUser.role !== "student" &&
         page !== "dashboard" &&
         page !== "users" &&
         page !== "courses" &&
-        page !== "groups" && <h1>{page}</h1>}
+        page !== "groups" &&
+        page !== "grades" && <h1>{page}</h1>}
     </AppLayout>
   );
 }
 
 export default App;
+
 
