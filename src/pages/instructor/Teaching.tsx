@@ -2,6 +2,7 @@
 import { Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import { createLecture, createVideo } from "../../lib/api";
+import { InstructorMaterialsManager } from "../../components/learning/Materials";
 
 const emptyLecture = {
   groupId: "",
@@ -331,15 +332,7 @@ export default function InstructorTeaching({
           </div>
         </Card>
       </div>
-
-      <Card>
-        <h2 style={sectionTitle}>Learning Materials</h2>
-        <p style={sectionSub}>PDF, PPTX, DOCX, and file upload support will be added using Supabase Storage.</p>
-
-        <div style={materialNotice}>
-          <strong>Next upgrade:</strong> create a materials table and connect Supabase Storage, so instructors can upload files and students can download them.
-        </div>
-      </Card>
+      <InstructorMaterialsManager user={user} data={data} setData={setData} />
     </div>
   );
 }
@@ -500,12 +493,4 @@ const videoIcon: CSSProperties = {
   flexShrink:0,
 };
 
-const materialNotice: CSSProperties = {
-  marginTop:16,
-  background:"#f8fafc",
-  border:"1px dashed #cbd5e1",
-  borderRadius:16,
-  padding:18,
-  color:C.muted,
-  lineHeight:1.7,
-};
+

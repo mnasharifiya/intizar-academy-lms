@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'instructor' | 'student';
+﻿export type UserRole = 'admin' | 'instructor' | 'student';
 export type LevelCategory = 'general' | 'managers' | 'proposal' | 'sisters';
 export type LectureType = 'online_discussion' | 'recorded';
 export type LectureStatus = 'scheduled' | 'live' | 'completed' | 'cancelled';
@@ -142,6 +142,38 @@ export interface Video {
   createdAt: string;
 }
 
+export type LearningMaterialKind = "file" | "link";
+
+export type LearningMaterialFileType =
+  | "pdf"
+  | "pptx"
+  | "docx"
+  | "image"
+  | "video"
+  | "audio"
+  | "link"
+  | "other";
+
+export interface LearningMaterial {
+  id: string;
+  groupId: string;
+  courseId: string;
+  instructorId: string;
+  title: string;
+  description: string;
+  kind: LearningMaterialKind;
+  fileType: LearningMaterialFileType;
+  fileName: string | null;
+  fileSize: number | null;
+  mimeType: string | null;
+  storagePath: string | null;
+  externalUrl: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppData {
   users: AppUser[];
   levels: Level[];
@@ -157,6 +189,7 @@ export interface AppData {
   chats: Chat[];
   notifications: Notification[];
   videos: Video[];
+  learningMaterials: LearningMaterial[];
 }
 
 // Supabase Database type definition
@@ -173,3 +206,4 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
+

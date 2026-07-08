@@ -1,6 +1,7 @@
 ﻿import { type CSSProperties } from "react";
 import { Card } from "../../components/common/ui";
 import { C } from "../../lib/theme";
+import { StudentMaterialsList } from "../../components/learning/Materials";
 
 export default function StudentLearning({
   user,
@@ -238,17 +239,7 @@ export default function StudentLearning({
           </div>
         </Card>
       </div>
-
-      <Card>
-        <h2 style={sectionTitle}>Learning Materials</h2>
-        <p style={sectionSub}>
-          PDF, PPTX, DOCX, and downloadable resources will be connected after we add Supabase Storage.
-        </p>
-
-        <div style={materialNotice}>
-          Materials module placeholder: instructor file upload and student download will be added in the next backend upgrade.
-        </div>
-      </Card>
+      <StudentMaterialsList user={user} data={data} />
     </div>
   );
 }
@@ -446,12 +437,4 @@ const videoIcon: CSSProperties = {
   flexShrink:0,
 };
 
-const materialNotice: CSSProperties = {
-  marginTop:16,
-  background:"#f8fafc",
-  border:"1px dashed #cbd5e1",
-  borderRadius:16,
-  padding:18,
-  color:C.muted,
-  lineHeight:1.7,
-};
+

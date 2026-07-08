@@ -1,12 +1,12 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import { supabase } from './supabase';
 import type {
   AppUser, Level, Course, LevelCourse, Group, GroupStudent,
   Lecture, Attendance, Assignment, AssignmentFile, Submission,
-  Grade, Chat, Notification, Video, AppData
+  Grade, Chat, Notification, Video, LearningMaterial, AppData
 } from './types';
 
-// ─── Row mappers (DB → App) ───────────────────────────────────
+// â”€â”€â”€ Row mappers (DB â†’ App) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function mapProfile(row: Record<string, unknown>): AppUser {
   return {
@@ -159,7 +159,29 @@ function mapVideo(row: Record<string, unknown>): Video {
   };
 }
 
-// ─── AUTH ─────────────────────────────────────────────────────
+function mapLearningMaterial(row: Record<string, unknown>): LearningMaterial {
+  return {
+    id: row.id as string,
+    groupId: row.group_id as string,
+    courseId: row.course_id as string,
+    instructorId: row.instructor_id as string,
+    title: row.title as string,
+    description: (row.description as string) ?? "",
+    kind: row.kind as LearningMaterial["kind"],
+    fileType: row.file_type as LearningMaterial["fileType"],
+    fileName: (row.file_name as string | null) ?? null,
+    fileSize: (row.file_size as number | null) ?? null,
+    mimeType: (row.mime_type as string | null) ?? null,
+    storagePath: (row.storage_path as string | null) ?? null,
+    externalUrl: (row.external_url as string | null) ?? null,
+    displayOrder: (row.display_order as number) ?? 0,
+    isActive: row.is_active as boolean,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+// â”€â”€â”€ AUTH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function signIn(email: string, password: string): Promise<AppUser> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -195,14 +217,14 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   return profile ? mapProfile(profile as Record<string, unknown>) : null;
 }
 
-// ─── LOAD ALL DATA ────────────────────────────────────────────
+// â”€â”€â”€ LOAD ALL DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function loadAllData(): Promise<AppData> {
   const [
     profilesRes, levelsRes, coursesRes, levelCoursesRes,
     groupsRes, groupStudentsRes, lecturesRes, attendanceRes,
     assignmentsRes, assignmentFilesRes, submissionsRes,
-    gradesRes, chatsRes, notifsRes, videosRes,
+    gradesRes, chatsRes, notifsRes, videosRes, materialsRes,
   ] = await Promise.all([
     supabase.from('profiles').select('*').order('name'),
     supabase.from('levels').select('*').order('name'),
@@ -219,6 +241,7 @@ export async function loadAllData(): Promise<AppData> {
     supabase.from('chats').select('*').order('created_at'),
     supabase.from('notifications').select('*').order('created_at', { ascending: false }),
     supabase.from('videos').select('*').order('order'),
+    supabase.from('learning_materials').select('*').order('display_order'),
   ]);
 
   const filesMap = new Map<string, AssignmentFile[]>();
@@ -253,10 +276,11 @@ export async function loadAllData(): Promise<AppData> {
     chats: (chatsRes.data ?? []).map((r) => mapChat(r as Record<string, unknown>)),
     notifications: (notifsRes.data ?? []).map((r) => mapNotification(r as Record<string, unknown>)),
     videos: (videosRes.data ?? []).map((r) => mapVideo(r as Record<string, unknown>)),
+    learningMaterials: (materialsRes.data ?? []).map((r) => mapLearningMaterial(r as Record<string, unknown>)),
   };
 }
 
-// ─── USERS ────────────────────────────────────────────────────
+// â”€â”€â”€ USERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createUser(data: {
   name: string; email: string; password: string; role: AppUser['role'];
@@ -348,7 +372,7 @@ export async function deleteUser(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ─── LEVELS ───────────────────────────────────────────────────
+// â”€â”€â”€ LEVELS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createLevel(data: Omit<Level, 'id'>): Promise<Level> {
   const { data: row, error } = await supabase
@@ -371,7 +395,7 @@ export async function updateLevel(id: string, data: Partial<Omit<Level, 'id'>>):
   return mapLevel(row as Record<string, unknown>);
 }
 
-// ─── COURSES ──────────────────────────────────────────────────
+// â”€â”€â”€ COURSES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createCourse(data: Omit<Course, 'id'>): Promise<Course> {
   const { data: row, error } = await supabase
@@ -383,7 +407,7 @@ export async function createCourse(data: Omit<Course, 'id'>): Promise<Course> {
   return mapCourse(row as Record<string, unknown>);
 }
 
-// ─── LEVEL COURSES ────────────────────────────────────────────
+// â”€â”€â”€ LEVEL COURSES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function addLevelCourse(levelId: string, courseId: string): Promise<void> {
   const { error } = await supabase
@@ -401,7 +425,7 @@ export async function removeLevelCourse(levelId: string, courseId: string): Prom
   if (error) throw error;
 }
 
-// ─── GROUPS ───────────────────────────────────────────────────
+// â”€â”€â”€ GROUPS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createGroup(data: Omit<Group, 'id'>): Promise<Group> {
   const { data: row, error } = await supabase
@@ -442,7 +466,7 @@ export async function deleteGroup(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ─── GROUP STUDENTS ───────────────────────────────────────────
+// â”€â”€â”€ GROUP STUDENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function addGroupStudent(groupId: string, studentId: string): Promise<void> {
   const { error } = await supabase
@@ -460,7 +484,7 @@ export async function removeGroupStudent(groupId: string, studentId: string): Pr
   if (error) throw error;
 }
 
-// ─── LECTURES ─────────────────────────────────────────────────
+// â”€â”€â”€ LECTURES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createLecture(data: Omit<Lecture, 'id'>): Promise<Lecture> {
   const { data: row, error } = await supabase
@@ -509,7 +533,7 @@ export async function deleteLecture(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ─── ATTENDANCE ───────────────────────────────────────────────
+// â”€â”€â”€ ATTENDANCE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function upsertAttendance(
   studentId: string,
@@ -528,7 +552,7 @@ export async function upsertAttendance(
   return mapAttendance(data as Record<string, unknown>);
 }
 
-// ─── ASSIGNMENTS ──────────────────────────────────────────────
+// â”€â”€â”€ ASSIGNMENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createAssignment(
   data: Omit<Assignment, 'id' | 'createdAt'>,
@@ -611,7 +635,7 @@ export async function deleteAssignment(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ─── SUBMISSIONS ──────────────────────────────────────────────
+// â”€â”€â”€ SUBMISSIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createSubmission(data: Omit<Submission, 'id' | 'submittedAt'>): Promise<Submission> {
   const { data: row, error } = await supabase
@@ -633,7 +657,7 @@ export async function deleteSubmission(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ─── GRADES ───────────────────────────────────────────────────
+// â”€â”€â”€ GRADES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createGrade(data: Omit<Grade, 'id' | 'createdAt'>): Promise<Grade> {
   const { data: row, error } = await supabase
@@ -669,7 +693,7 @@ export async function deleteGrade(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ─── CHATS ────────────────────────────────────────────────────
+// â”€â”€â”€ CHATS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function sendChat(groupId: string, senderId: string, message: string): Promise<Chat> {
   const { data, error } = await supabase
@@ -691,7 +715,7 @@ export async function loadChats(groupId: string): Promise<Chat[]> {
   return (data ?? []).map((r) => mapChat(r as Record<string, unknown>));
 }
 
-// ─── NOTIFICATIONS ────────────────────────────────────────────
+// â”€â”€â”€ NOTIFICATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createNotification(data: Omit<Notification, 'id' | 'createdAt' | 'isRead'>): Promise<Notification> {
   const { data: row, error } = await supabase
@@ -734,7 +758,7 @@ export async function loadNotifications(userId: string): Promise<Notification[]>
   return (data ?? []).map((r) => mapNotification(r as Record<string, unknown>));
 }
 
-// ─── VIDEOS ───────────────────────────────────────────────────
+// â”€â”€â”€ VIDEOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createVideo(data: Omit<Video, 'id' | 'createdAt'>): Promise<Video> {
   const { data: row, error } = await supabase
@@ -779,7 +803,7 @@ export async function deleteVideo(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ─── REAL-TIME SUBSCRIPTIONS ──────────────────────────────────
+// â”€â”€â”€ REAL-TIME SUBSCRIPTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function subscribeToChats(groupId: string, callback: (chat: Chat) => void) {
   return supabase
@@ -812,4 +836,129 @@ export function subscribeToLectures(callback: (lecture: Lecture) => void) {
       (payload) => callback(mapLecture(payload.new as Record<string, unknown>))
     )
     .subscribe();
+}
+
+// ─── LEARNING MATERIALS ───────────────────────────────────────
+
+function detectMaterialFileType(mimeType: string): LearningMaterial["fileType"] {
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType.includes("presentation") || mimeType.includes("powerpoint")) return "pptx";
+  if (mimeType.includes("wordprocessingml") || mimeType === "application/msword") return "docx";
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "audio";
+  return "other";
+}
+
+function safeFileName(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase();
+}
+
+export async function createLearningMaterialLink(data: {
+  groupId: string;
+  courseId: string;
+  instructorId: string;
+  title: string;
+  description: string;
+  externalUrl: string;
+  displayOrder?: number;
+}): Promise<LearningMaterial> {
+  const { data: row, error } = await supabase
+    .from("learning_materials")
+    .insert({
+      group_id: data.groupId,
+      course_id: data.courseId,
+      instructor_id: data.instructorId,
+      title: data.title,
+      description: data.description,
+      kind: "link",
+      file_type: "link",
+      external_url: data.externalUrl,
+      display_order: data.displayOrder ?? 0,
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapLearningMaterial(row as Record<string, unknown>);
+}
+
+export async function uploadLearningMaterialFile(data: {
+  groupId: string;
+  courseId: string;
+  instructorId: string;
+  title: string;
+  description: string;
+  file: File;
+  displayOrder?: number;
+}): Promise<LearningMaterial> {
+  const cleanName = safeFileName(data.file.name);
+  const storagePath = `${data.groupId}/${Date.now()}-${cleanName}`;
+
+  const upload = await supabase.storage
+    .from("learning-materials")
+    .upload(storagePath, data.file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: data.file.type,
+    });
+
+  if (upload.error) throw upload.error;
+
+  const { data: row, error } = await supabase
+    .from("learning_materials")
+    .insert({
+      group_id: data.groupId,
+      course_id: data.courseId,
+      instructor_id: data.instructorId,
+      title: data.title,
+      description: data.description,
+      kind: "file",
+      file_type: detectMaterialFileType(data.file.type),
+      file_name: data.file.name,
+      file_size: data.file.size,
+      mime_type: data.file.type,
+      storage_path: storagePath,
+      display_order: data.displayOrder ?? 0,
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return mapLearningMaterial(row as Record<string, unknown>);
+}
+
+export async function getLearningMaterialUrl(material: LearningMaterial): Promise<string> {
+  if (material.kind === "link") {
+    return material.externalUrl || "";
+  }
+
+  if (!material.storagePath) return "";
+
+  const { data, error } = await supabase.storage
+    .from("learning-materials")
+    .createSignedUrl(material.storagePath, 60 * 60);
+
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+export async function deleteLearningMaterial(material: LearningMaterial): Promise<void> {
+  const { error } = await supabase
+    .from("learning_materials")
+    .delete()
+    .eq("id", material.id);
+
+  if (error) throw error;
+
+  if (material.kind === "file" && material.storagePath) {
+    await supabase.storage
+      .from("learning-materials")
+      .remove([material.storagePath]);
+  }
 }

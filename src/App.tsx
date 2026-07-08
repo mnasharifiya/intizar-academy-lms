@@ -31,6 +31,7 @@ function App() {
     chats: [],
     notifications: [],
     videos: [],
+    learningMaterials: [],
   });
 
   async function refreshData() {
@@ -111,3 +112,4 @@ function App() {
 }
 
 export default App;
+
