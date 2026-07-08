@@ -5,6 +5,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/Users";
 import CoursesPage from "./pages/admin/Courses";
 import GroupsPage from "./pages/admin/Groups";
+import StudentDashboard from "./pages/student/Dashboard";
 import { loadAllData } from "./lib/api";
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
 
   async function handleLogin(user: any) {
     setCurrentUser(user);
+    setPage("dashboard");
     await refreshData();
   }
 
@@ -49,16 +51,33 @@ function App() {
       setPage={setPage}
       onLogout={() => setCurrentUser(null)}
     >
-      {page === "dashboard" && <AdminDashboard data={data} />}
-      {page === "users" && <UsersPage data={data} setData={setData} />}
-      {page === "courses" && <CoursesPage data={data} setData={setData} />}
-      {page === "groups" && <GroupsPage data={data} setData={setData} />}
-      {page !== "dashboard" && page !== "users" && page !== "courses" && page !== "groups" && <h1>{page}</h1>}
+      {currentUser.role === "student" && (
+        <StudentDashboard user={currentUser} data={data} />
+      )}
+
+      {currentUser.role !== "student" && page === "dashboard" && (
+        <AdminDashboard data={data} />
+      )}
+
+      {currentUser.role !== "student" && page === "users" && (
+        <UsersPage data={data} setData={setData} />
+      )}
+
+      {currentUser.role !== "student" && page === "courses" && (
+        <CoursesPage data={data} setData={setData} />
+      )}
+
+      {currentUser.role !== "student" && page === "groups" && (
+        <GroupsPage data={data} setData={setData} />
+      )}
+
+      {currentUser.role !== "student" &&
+        page !== "dashboard" &&
+        page !== "users" &&
+        page !== "courses" &&
+        page !== "groups" && <h1>{page}</h1>}
     </AppLayout>
   );
 }
 
 export default App;
-
-
-
