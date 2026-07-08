@@ -10,9 +10,11 @@ import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
 import StudentLearning from "./pages/student/Learning";
 import StudentAssignments from "./pages/student/Assignments";
+import StudentAttendance from "./pages/student/Attendance";
 import InstructorTeaching from "./pages/instructor/Teaching";
 import InstructorGroups from "./pages/instructor/Groups";
 import InstructorAssignments from "./pages/instructor/Assignments";
+import InstructorAttendance from "./pages/instructor/Attendance";
 import { loadAllData } from "./lib/api";
 
 function App() {
@@ -65,6 +67,10 @@ function App() {
         return <StudentAssignments user={currentUser} data={data} setData={setData} />;
       }
 
+      if (page === "attendance") {
+        return <StudentAttendance user={currentUser} data={data} />;
+      }
+
       if (page === "grades") {
         return <StudentGrades user={currentUser} data={data} />;
       }
@@ -83,6 +89,10 @@ function App() {
 
       if (page === "assignments") {
         return <InstructorAssignments user={currentUser} data={data} setData={setData} />;
+      }
+
+      if (page === "attendance") {
+        return <InstructorAttendance user={currentUser} data={data} setData={setData} />;
       }
 
       if (page === "grades") {
@@ -122,5 +132,6 @@ function App() {
 }
 
 export default App;
+
 
 
