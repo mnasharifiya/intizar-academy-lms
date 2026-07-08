@@ -8,6 +8,8 @@ import GroupsPage from "./pages/admin/Groups";
 import GradeManagement from "./pages/admin/GradeManagement";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
+import InstructorTeaching from "./pages/instructor/Teaching";
+import InstructorGroups from "./pages/instructor/Groups";
 import { loadAllData } from "./lib/api";
 
 function App() {
@@ -25,6 +27,9 @@ function App() {
     submissions: [],
     grades: [],
     attendance: [],
+    chats: [],
+    notifications: [],
+    videos: [],
   });
 
   async function refreshData() {
@@ -46,6 +51,48 @@ function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  function renderPage() {
+    if (currentUser.role === "student") {
+      if (page === "grades") {
+        return <StudentGrades user={currentUser} data={data} />;
+      }
+
+      return <StudentDashboard user={currentUser} data={data} />;
+    }
+
+    if (currentUser.role === "instructor") {
+      if (page === "teaching") {
+        return <InstructorTeaching user={currentUser} data={data} setData={setData} />;
+      }
+
+      if (page === "groups") {
+        return <InstructorGroups user={currentUser} data={data} />;
+      }
+
+      if (page === "grades") {
+        return <GradeManagement user={currentUser} data={data} setData={setData} />;
+      }
+    }
+
+    if (page === "dashboard") {
+      return <AdminDashboard data={data} />;
+    }
+
+    if (page === "users" && currentUser.role === "admin") {
+      return <UsersPage data={data} setData={setData} />;
+    }
+
+    if (page === "courses") {
+      return <CoursesPage data={data} setData={setData} />;
+    }
+
+    if (page === "groups") {
+      return <GroupsPage data={data} setData={setData} />;
+    }
+
+    return <h1>{page}</h1>;
+  }
+
   return (
     <AppLayout
       user={currentUser}
@@ -53,50 +100,10 @@ function App() {
       setPage={setPage}
       onLogout={() => setCurrentUser(null)}
     >
-      {currentUser.role === "student" && page === "dashboard" && (
-        <StudentDashboard user={currentUser} data={data} />
-      )}
-
-      {currentUser.role === "student" && page === "grades" && (
-        <StudentGrades user={currentUser} data={data} />
-      )}
-
-      {currentUser.role === "student" &&
-        page !== "dashboard" &&
-        page !== "grades" && (
-          <StudentDashboard user={currentUser} data={data} />
-        )}
-
-      {currentUser.role !== "student" && page === "dashboard" && (
-        <AdminDashboard data={data} />
-      )}
-
-      {currentUser.role !== "student" && page === "users" && (
-        <UsersPage data={data} setData={setData} />
-      )}
-
-      {currentUser.role !== "student" && page === "courses" && (
-        <CoursesPage data={data} setData={setData} />
-      )}
-
-      {currentUser.role !== "student" && page === "groups" && (
-        <GroupsPage data={data} setData={setData} />
-      )}
-
-      {currentUser.role !== "student" && page === "grades" && (
-        <GradeManagement user={currentUser} data={data} setData={setData} />
-      )}
-
-      {currentUser.role !== "student" &&
-        page !== "dashboard" &&
-        page !== "users" &&
-        page !== "courses" &&
-        page !== "groups" &&
-        page !== "grades" && <h1>{page}</h1>}
+      {renderPage()}
     </AppLayout>
   );
 }
 
 export default App;
-
 

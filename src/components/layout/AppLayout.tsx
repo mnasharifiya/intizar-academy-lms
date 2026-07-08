@@ -24,8 +24,8 @@ const adminNav = [
 
 const instructorNav = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "teaching", label: "Teaching", icon: BookOpen },
   { id: "groups", label: "My Groups", icon: Layers },
-  { id: "courses", label: "Courses", icon: BookOpen },
   { id: "assignments", label: "Assignments", icon: ClipboardList },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "grades", label: "Grades", icon: Award },
@@ -209,6 +209,8 @@ export default function AppLayout({
     </div>
   );
 }
+
+
 
 
 
