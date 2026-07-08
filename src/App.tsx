@@ -5,6 +5,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/Users";
 import CoursesPage from "./pages/admin/Courses";
 import GroupsPage from "./pages/admin/Groups";
+import AdminReports from "./pages/admin/Reports";
 import GradeManagement from "./pages/admin/GradeManagement";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
@@ -127,6 +128,10 @@ function App() {
       return <GroupsPage data={data} setData={setData} />;
     }
 
+    if (page === "reports") {
+      return <AdminReports data={data} />;
+    }
+
     if (page === "chat") {
       return <GroupChat user={currentUser} data={data} setData={setData} />;
     }
@@ -147,3 +152,4 @@ function App() {
 }
 
 export default App;
+
