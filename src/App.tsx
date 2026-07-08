@@ -8,6 +8,7 @@ import GroupsPage from "./pages/admin/Groups";
 import GradeManagement from "./pages/admin/GradeManagement";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
+import StudentLearning from "./pages/student/Learning";
 import InstructorTeaching from "./pages/instructor/Teaching";
 import InstructorGroups from "./pages/instructor/Groups";
 import { loadAllData } from "./lib/api";
@@ -53,6 +54,10 @@ function App() {
 
   function renderPage() {
     if (currentUser.role === "student") {
+      if (page === "courses") {
+        return <StudentLearning user={currentUser} data={data} />;
+      }
+
       if (page === "grades") {
         return <StudentGrades user={currentUser} data={data} />;
       }
@@ -106,4 +111,3 @@ function App() {
 }
 
 export default App;
-
