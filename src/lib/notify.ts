@@ -9,11 +9,15 @@ export async function notifyUsers(
   const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
 
   for (const userId of uniqueIds) {
-    await createNotification({
-      userId,
-      type: type as any,
-      title,
-      body,
-    });
+    try {
+      await createNotification({
+        userId,
+        type: type as any,
+        title,
+        body,
+      });
+    } catch (err) {
+      console.error("Notification failed for user:", userId, err);
+    }
   }
 }

@@ -1,7 +1,7 @@
 ﻿import { useState, type CSSProperties } from "react";
 import { Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
-import { createAssignment, createGrade } from "../../lib/api";
+import { createAssignment, createGrade, uploadAssignmentFile, getSubmissionFileUrl } from "../../lib/api";
 import { notifyUsers } from "../../lib/notify";
 
 const emptyForm = {
@@ -22,6 +22,7 @@ export default function InstructorAssignments({
   setData: any;
 }) {
   const [form, setForm] = useState(emptyForm);
+  const [filterGroupId, setFilterGroupId] = useState("all");
   const [files, setFiles] = useState<File[]>([]);
   const [gradeModal, setGradeModal] = useState<any>(null);
   const [gradeForm, setGradeForm] = useState({ score: "", feedback: "" });
@@ -37,9 +38,14 @@ export default function InstructorAssignments({
 
   const myGroups = groups.filter((g: any) => g.instructorId === user.id);
 
-  const myAssignments = assignments
+  const allMyAssignments = assignments
     .filter((a: any) => myGroups.some((g: any) => g.id === a.groupId))
     .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const myAssignments =
+    filterGroupId === "all"
+      ? allMyAssignments
+      : allMyAssignments.filter((a: any) => a.groupId === filterGroupId);
 
   function coursesForGroup(groupId: string) {
     const group = myGroups.find((g: any) => g.id === groupId);
@@ -79,6 +85,20 @@ export default function InstructorAssignments({
     return grades.find((g: any) => g.assignmentId === assignmentId && g.studentId === studentId);
   }
 
+  async function openSubmissionFile(submission: any) {
+    try {
+      if (!submission.storagePath) {
+        alert("This submission was created before file storage was enabled. Ask the student to submit again.");
+        return;
+      }
+
+      const url = await getSubmissionFileUrl(submission);
+      window.open(url, "_blank");
+    } catch (err: any) {
+      alert(err?.message || "Could not open submission file.");
+    }
+  }
+
   async function saveAssignment() {
     if (!form.groupId || !form.courseId || !form.title || !form.dueDate) {
       alert("Group, course, title, and due date are required.");
@@ -92,16 +112,24 @@ export default function InstructorAssignments({
       description: form.description,
       dueDate: new Date(form.dueDate).toISOString(),
       createdBy: user.id,
-      files: files.map((file) => ({
-        name: file.name,
-        type: getFileExt(file.name),
-        size: formatSize(file.size),
-      })),
+      files: [],
     });
+
+    const uploadedFiles = [];
+
+    for (const file of files) {
+      const uploaded = await uploadAssignmentFile(newAssignment.id, file);
+      uploadedFiles.push(uploaded);
+    }
+
+    const assignmentWithFiles = {
+      ...newAssignment,
+      files: uploadedFiles,
+    };
 
     setData((d: any) => ({
       ...d,
-      assignments: [...d.assignments, newAssignment],
+      assignments: [...d.assignments, assignmentWithFiles],
     }));
 
     setForm(emptyForm);
@@ -250,8 +278,23 @@ export default function InstructorAssignments({
       </div>
 
       <Card>
-        <h2 style={sectionTitle}>My Assignments</h2>
-        <p style={sectionSub}>Review submissions and grade student work</p>
+        <div style={{display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+          <div>
+            <h2 style={sectionTitle}>My Assignments</h2>
+            <p style={sectionSub}>Review submissions and grade student work</p>
+          </div>
+
+          <select
+            value={filterGroupId}
+            onChange={e => setFilterGroupId(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="all">All my groups</option>
+            {myGroups.map((g: any) => (
+              <option key={g.id} value={g.id}>Filter by group: {g.name}</option>
+            ))}
+          </select>
+        </div>
 
         {myAssignments.length === 0 && (
           <div style={emptyState}>
@@ -323,6 +366,12 @@ export default function InstructorAssignments({
                           <strong>{studentName(sub.studentId)}</strong>
                           <div style={meta}>
                             {sub.fileName} — {sub.fileSize} — {formatDate(sub.submittedAt)}
+                          </div>
+
+                          <div style={{marginTop:8}}>
+                            <button style={outlineMiniButton} onClick={() => openSubmissionFile(sub)}>
+                              Download submission
+                            </button>
                           </div>
                           {grade && (
                             <div style={{marginTop:5,color:C.primary,fontWeight:900,fontSize:13}}>
@@ -396,9 +445,6 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function getFileExt(name: string) {
-  return name.split(".").pop()?.toLowerCase() || "file";
-}
 
 function formatSize(size: number) {
   if (size < 1024 * 1024) return Math.round(size / 1024) + " KB";
@@ -587,6 +633,17 @@ const submissionRow: CSSProperties = {
   borderRadius:14,
 };
 
+const outlineMiniButton: CSSProperties = {
+  border:"1px solid #e2e8f0",
+  background:"#fff",
+  color:C.text,
+  borderRadius:10,
+  padding:"7px 10px",
+  fontWeight:900,
+  cursor:"pointer",
+  fontSize:12,
+};
+
 const miniButton: CSSProperties = {
   border:"none",
   background:C.primary,
@@ -614,5 +671,9 @@ const modal: CSSProperties = {
   padding:24,
   boxShadow:"0 20px 60px rgba(0,0,0,.25)",
 };
+
+
+
+
 
 

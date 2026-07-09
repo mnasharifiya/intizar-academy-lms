@@ -1,7 +1,7 @@
 ﻿import { useState, type CSSProperties } from "react";
 import { Card, Button } from "../../components/common/ui";
 import { C } from "../../lib/theme";
-import { createSubmission } from "../../lib/api";
+import { createSubmission, getAssignmentFileUrl, uploadSubmissionFile } from "../../lib/api";
 import { notifyUsers } from "../../lib/notify";
 
 export default function StudentAssignments({
@@ -48,17 +48,35 @@ export default function StudentAssignments({
     );
   }
 
+  async function openAssignmentFile(assignmentFile: any) {
+    try {
+      if (!assignmentFile.storagePath) {
+        alert("This file was attached before download storage was enabled. Ask the instructor to re-upload the assignment file.");
+        return;
+      }
+
+      const url = await getAssignmentFileUrl(assignmentFile);
+      window.open(url, "_blank");
+    } catch (err: any) {
+      alert(err?.message || "Could not open assignment file.");
+    }
+  }
+
   async function submitAssignment() {
     if (!selectedAssignment || !file) {
       alert("Please select a file.");
       return;
     }
 
+    const uploaded = await uploadSubmissionFile(selectedAssignment.id, user.id, file);
+
     const newSubmission = await createSubmission({
       assignmentId: selectedAssignment.id,
       studentId: user.id,
-      fileName: file.name,
-      fileSize: formatSize(file.size),
+      fileName: uploaded.fileName,
+      fileSize: uploaded.fileSize,
+      storagePath: uploaded.storagePath,
+      mimeType: uploaded.mimeType,
     });
 
     setData((d: any) => ({
@@ -149,9 +167,9 @@ export default function StudentAssignments({
               {assignment.files?.length > 0 && (
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
                   {assignment.files.map((f: any, i: number) => (
-                    <span key={i} style={filePill}>
-                      {f.name} — {f.size}
-                    </span>
+                    <button key={i} style={filePill} onClick={() => openAssignmentFile(f)}>
+                      Download {f.name} — {f.size}
+                    </button>
                   ))}
                 </div>
               )}
@@ -213,10 +231,6 @@ export default function StudentAssignments({
   );
 }
 
-function formatSize(size: number) {
-  if (size < 1024 * 1024) return Math.round(size / 1024) + " KB";
-  return (size / (1024 * 1024)).toFixed(1) + " MB";
-}
 
 function formatDate(value: string) {
   if (!value) return "-";
@@ -353,5 +367,9 @@ const fileInputStyle: CSSProperties = {
   borderRadius:10,
   background:"#fff",
 };
+
+
+
+
 
 

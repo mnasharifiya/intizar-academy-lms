@@ -77,6 +77,8 @@ export interface AssignmentFile {
   name: string;
   type: string;
   size: string;
+  storagePath?: string | null;
+  mimeType?: string | null;
 }
 
 export interface Assignment {
@@ -97,6 +99,8 @@ export interface Submission {
   studentId: string;
   fileName: string;
   fileSize: string;
+  storagePath?: string | null;
+  mimeType?: string | null;
   submittedAt: string;
 }
 
@@ -206,4 +210,7 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
+
+
+
 

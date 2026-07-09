@@ -54,76 +54,75 @@ export default function AppLayout({
 }: {
   user: any;
   page: string;
-  setPage: (p: string) => void;
+  setPage: (page: string) => void;
   onLogout: () => void;
   children: ReactNode;
 }) {
-  const role = String(user?.role || "student").toLowerCase();
+  const role = String(user?.role || "").toLowerCase();
 
   const nav =
-    role === "admin"
-      ? adminNav
-      : role === "instructor"
-      ? instructorNav
-      : studentNav;
+    role === "admin" ? adminNav :
+    role === "instructor" ? instructorNav :
+    studentNav;
 
   const portalName =
-    role === "admin"
-      ? "Admin Portal"
-      : role === "instructor"
-      ? "Instructor Portal"
-      : "Student Portal";
+    role === "admin" ? "Admin Portal" :
+    role === "instructor" ? "Instructor Portal" :
+    "Student Portal";
 
   return (
-    <div style={{minHeight:"100vh",display:"flex",background:"#f8fafc"}}>
+    <div style={{
+      minHeight:"100vh",
+      display:"grid",
+      gridTemplateColumns:"280px minmax(0,1fr)",
+      background:"#f8fafc",
+    }}>
       <aside style={{
-        width:260,
-        background:"linear-gradient(180deg,#052e16,#063b1c)",
+        background:"linear-gradient(180deg,#052e16,#064e3b)",
         color:"#fff",
-        display:"flex",
-        flexDirection:"column",
-        boxShadow:"8px 0 30px rgba(15,23,42,.08)",
+        padding:20,
+        position:"sticky",
+        top:0,
+        height:"100vh",
+        overflowY:"auto",
       }}>
-        <div style={{padding:24,borderBottom:"1px solid rgba(255,255,255,.08)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{
-              width:46,
-              height:46,
-              borderRadius:"50%",
-              background:"#fff",
-              color:C.primary,
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
-              fontWeight:900,
-              fontSize:18,
-              boxShadow:"0 10px 25px rgba(0,0,0,.15)",
-            }}>
-              IA
-            </div>
-
-            <div>
-              <div style={{fontWeight:900,letterSpacing:.5,fontSize:18}}>INTIZAR</div>
-              <div style={{fontSize:10,letterSpacing:3,color:C.light}}>ACADEMY</div>
-            </div>
+        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:28}}>
+          <div style={{
+            width:48,
+            height:48,
+            borderRadius:16,
+            background:"#fff",
+            color:C.primary,
+            display:"flex",
+            alignItems:"center",
+            justifyContent:"center",
+            fontWeight:900,
+            fontSize:18,
+          }}>
+            IA
           </div>
 
-          <div style={{
-            marginTop:22,
-            padding:14,
-            borderRadius:16,
-            background:"rgba(255,255,255,.08)",
-            border:"1px solid rgba(255,255,255,.10)",
-          }}>
-            <div style={{fontWeight:900,fontSize:14}}>{user?.name || "User"}</div>
-            <div style={{fontSize:12,color:C.light,textTransform:"capitalize",marginTop:3}}>
-              {role}
-            </div>
+          <div>
+            <div style={{fontWeight:900,fontSize:18}}>{APP_NAME}</div>
+            <div style={{fontSize:11,letterSpacing:2.5,color:C.light}}>ACADEMY</div>
           </div>
         </div>
 
-        <nav style={{padding:14,flex:1}}>
-          {nav.map(item => {
+        <div style={{
+          padding:"12px 14px",
+          border:"1px solid rgba(255,255,255,.12)",
+          background:"rgba(255,255,255,.08)",
+          borderRadius:16,
+          marginBottom:18,
+        }}>
+          <div style={{fontWeight:900}}>{portalName}</div>
+          <div style={{fontSize:12,color:C.light,textTransform:"capitalize",marginTop:3}}>
+            {role}
+          </div>
+        </div>
+
+        <nav style={{display:"grid",gap:8}}>
+          {nav.map((item) => {
             const Icon = item.icon;
             const active = page === item.id;
 
@@ -132,19 +131,18 @@ export default function AppLayout({
                 key={item.id}
                 onClick={() => setPage(item.id)}
                 style={{
+                  border:"none",
                   width:"100%",
                   display:"flex",
                   alignItems:"center",
                   gap:12,
                   padding:"12px 14px",
-                  borderRadius:13,
-                  border:"none",
-                  marginBottom:6,
+                  borderRadius:14,
                   cursor:"pointer",
-                  background:active ? "rgba(34,197,94,.22)" : "transparent",
-                  color:active ? "#fff" : "rgba(220,252,231,.78)",
+                  color:"#fff",
                   fontWeight:800,
                   textAlign:"left",
+                  background:active ? "rgba(255,255,255,.18)" : "transparent",
                 }}
               >
                 <Icon size={18} />
@@ -153,74 +151,57 @@ export default function AppLayout({
             );
           })}
         </nav>
-
-        <div style={{padding:16,borderTop:"1px solid rgba(255,255,255,.08)"}}>
-          <button
-            onClick={onLogout}
-            style={{
-              width:"100%",
-              display:"flex",
-              alignItems:"center",
-              gap:10,
-              padding:"12px 14px",
-              borderRadius:13,
-              border:"none",
-              background:"rgba(255,255,255,.09)",
-              color:"#fff",
-              cursor:"pointer",
-              fontWeight:800,
-            }}
-          >
-            <LogOut size={17} />
-            Sign out
-          </button>
-        </div>
       </aside>
 
-      <main style={{flex:1,minWidth:0}}>
+      <main style={{minWidth:0}}>
         <header style={{
-          height:72,
+          height:74,
           background:"#fff",
-          borderBottom:"1px solid "+C.border,
+          borderBottom:"1px solid " + C.border,
           display:"flex",
           alignItems:"center",
           justifyContent:"space-between",
-          padding:"0 32px",
+          padding:"0 26px",
           position:"sticky",
           top:0,
-          zIndex:10,
+          zIndex:20,
         }}>
           <div>
             <div style={{fontWeight:900,color:C.text,fontSize:18}}>{APP_NAME}</div>
             <div style={{fontSize:12,color:C.muted,marginTop:3}}>{portalName}</div>
           </div>
 
-          <div style={{
-            display:"flex",
-            alignItems:"center",
-            gap:10,
-            fontWeight:800,
-            color:C.text,
-          }}>
-            {user?.name}
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontWeight:900,color:C.text,fontSize:14}}>{user?.name}</div>
+              <div style={{fontSize:12,color:C.muted,textTransform:"capitalize"}}>{role}</div>
+            </div>
+
+            <button
+              onClick={onLogout}
+              style={{
+                border:"1px solid #e2e8f0",
+                background:"#fff",
+                color:C.text,
+                borderRadius:12,
+                padding:"10px 12px",
+                fontWeight:900,
+                cursor:"pointer",
+                display:"flex",
+                alignItems:"center",
+                gap:8,
+              }}
+            >
+              <LogOut size={17} />
+              Sign out
+            </button>
           </div>
         </header>
 
-        <div style={{padding:32}}>
+        <div style={{padding:26}}>
           {children}
         </div>
       </main>
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

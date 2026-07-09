@@ -103,8 +103,10 @@ function mapSubmission(row: Record<string, unknown>): Submission {
     id: row.id as string,
     assignmentId: row.assignment_id as string,
     studentId: row.student_id as string,
-    fileName: (row.file_name as string) ?? '',
-    fileSize: (row.file_size as string) ?? '',
+    fileName: row.file_name as string,
+    fileSize: row.file_size as string,
+    storagePath: (row.storage_path as string) ?? null,
+    mimeType: (row.mime_type as string) ?? null,
     submittedAt: row.submitted_at as string,
   };
 }
@@ -249,7 +251,13 @@ export async function loadAllData(): Promise<AppData> {
     const row = f as Record<string, unknown>;
     const aId = row.assignment_id as string;
     if (!filesMap.has(aId)) filesMap.set(aId, []);
-    filesMap.get(aId)!.push({ name: row.name as string, type: (row.type as string) ?? '', size: (row.size as string) ?? '' });
+    filesMap.get(aId)!.push({
+      name: row.name as string,
+      type: (row.type as string) ?? '',
+      size: (row.size as string) ?? '',
+      storagePath: (row.storage_path as string) ?? null,
+      mimeType: (row.mime_type as string) ?? null,
+    });
   });
 
   return {
@@ -645,20 +653,16 @@ export async function createSubmission(data: Omit<Submission, 'id' | 'submittedA
       student_id: data.studentId,
       file_name: data.fileName,
       file_size: data.fileSize,
+      storage_path: data.storagePath ?? null,
+      mime_type: data.mimeType ?? null,
     })
     .select()
     .single();
+
   if (error) throw error;
+
   return mapSubmission(row as Record<string, unknown>);
 }
-
-export async function deleteSubmission(id: string): Promise<void> {
-  const { error } = await supabase.from('submissions').delete().eq('id', id);
-  if (error) throw error;
-}
-
-// â”€â”€â”€ GRADES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 export async function createGrade(data: Omit<Grade, 'id' | 'createdAt'>): Promise<Grade> {
   const { data: row, error } = await supabase
     .from('grades')
@@ -718,20 +722,35 @@ export async function loadChats(groupId: string): Promise<Chat[]> {
 // â”€â”€â”€ NOTIFICATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createNotification(data: Omit<Notification, 'id' | 'createdAt' | 'isRead'>): Promise<Notification> {
-  const { data: row, error } = await supabase
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+
+  const notification: Notification = {
+    id,
+    userId: data.userId,
+    type: data.type,
+    title: data.title,
+    body: data.body ?? "",
+    isRead: false,
+    createdAt,
+  };
+
+  const { error } = await supabase
     .from('notifications')
     .insert({
+      id,
       user_id: data.userId,
       type: data.type,
       title: data.title,
-      body: data.body,
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return mapNotification(row as Record<string, unknown>);
-}
+      body: data.body ?? "",
+      is_read: false,
+      created_at: createdAt,
+    });
 
+  if (error) throw error;
+
+  return notification;
+}
 export async function markNotificationRead(id: string): Promise<void> {
   const { error } = await supabase
     .from('notifications')
@@ -962,3 +981,126 @@ export async function deleteLearningMaterial(material: LearningMaterial): Promis
       .remove([material.storagePath]);
   }
 }
+
+function assignmentFileTypeFromName(name: string): string {
+  return name.split(".").pop()?.toLowerCase() || "file";
+}
+
+function assignmentUploadSize(size: number): string {
+  if (size < 1024 * 1024) return Math.round(size / 1024) + " KB";
+  return (size / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function safeAssignmentFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+export async function uploadAssignmentFile(
+  assignmentId: string,
+  file: File
+): Promise<AssignmentFile> {
+  const storagePath = `${assignmentId}/${Date.now()}-${safeAssignmentFileName(file.name)}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("assignment-files")
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "application/octet-stream",
+    });
+
+  if (uploadError) throw uploadError;
+
+  const record = {
+    name: file.name,
+    type: assignmentFileTypeFromName(file.name),
+    size: assignmentUploadSize(file.size),
+    storagePath,
+    mimeType: file.type || "application/octet-stream",
+  };
+
+  const { error } = await supabase.from("assignment_files").insert({
+    assignment_id: assignmentId,
+    name: record.name,
+    type: record.type,
+    size: record.size,
+    storage_path: record.storagePath,
+    mime_type: record.mimeType,
+  });
+
+  if (error) throw error;
+
+  return record;
+}
+
+export async function getAssignmentFileUrl(file: AssignmentFile): Promise<string> {
+  if (!file.storagePath) {
+    throw new Error("This assignment file has no storage path.");
+  }
+
+  const { data, error } = await supabase.storage
+    .from("assignment-files")
+    .createSignedUrl(file.storagePath, 60 * 10);
+
+  if (error) throw error;
+
+  return data.signedUrl;
+}
+
+function submissionUploadSize(size: number): string {
+  if (size < 1024 * 1024) return Math.round(size / 1024) + " KB";
+  return (size / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function safeSubmissionFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+export async function uploadSubmissionFile(
+  assignmentId: string,
+  studentId: string,
+  file: File
+): Promise<{
+  fileName: string;
+  fileSize: string;
+  storagePath: string;
+  mimeType: string;
+}> {
+  const storagePath = `${assignmentId}/${studentId}/${Date.now()}-${safeSubmissionFileName(file.name)}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("submission-files")
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "application/octet-stream",
+    });
+
+  if (uploadError) throw uploadError;
+
+  return {
+    fileName: file.name,
+    fileSize: submissionUploadSize(file.size),
+    storagePath,
+    mimeType: file.type || "application/octet-stream",
+  };
+}
+
+export async function getSubmissionFileUrl(submission: {
+  storagePath?: string | null;
+}): Promise<string> {
+  if (!submission.storagePath) {
+    throw new Error("This submission has no stored file.");
+  }
+
+  const { data, error } = await supabase.storage
+    .from("submission-files")
+    .createSignedUrl(submission.storagePath, 60 * 10);
+
+  if (error) throw error;
+
+  return data.signedUrl;
+}
+
+
+
