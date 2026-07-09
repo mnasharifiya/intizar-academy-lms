@@ -1,14 +1,14 @@
 ﻿# INTIZAR Academy LMS
 
-**INTIZAR Academy LMS** wani web-based Learning Management System ne da aka gina domin sauƙaƙa gudanar da karatu, malamai, ɗalibai, assignments, attendance, grading, learning materials, group chat, notifications, da admin reports.
+**INTIZAR Academy LMS** web-based Learning Management System ne da aka gina domin sauƙaƙa gudanar da karatu, malamai, ɗalibai, assignments, attendance, grading, learning materials, group chat, notifications, da admin reports.
 
-This project is built with **React + TypeScript + Supabase**.
+An gina wannan web ne da fasahar **React + TypeScript + Supabase**.
 
 ---
 
 ## 📌 Project Overview
 
-INTIZAR Academy LMS an tsara shi ne domin educational organization ko academy da ke buƙatar tsarin online learning mai sauƙi, tsari, da role-based access.
+INTIZAR Academy LMS an tsara shi ne domin sau kake tsarin karatu na da Intizarul Imamul Muntazar take yiwa manbobin ta.
 
 Tsarin yana da manyan roles guda uku:
 
@@ -178,7 +178,7 @@ npm run preview
 
 ## 🧪 Testing Flow
 
-Before real usage, test this complete workflow:
+Before sending the project, we test this complete workflow:
 
 ```text
 1. Admin creates users.
@@ -244,26 +244,11 @@ VITE_SUPABASE_ANON_KEY
 
 ---
 
-## ⚠️ Production Notes
-
-Before using with real students:
-
-* Review all Supabase RLS policies
-* Remove test data
-* Create real users
-* Confirm storage permissions
-* Add official academy logo
-* Add backup strategy
-* Test with small group first
-
----
-
 ## 👤 Developer
 
 Developed by:
 
-**Muhammad Muttaka**
-Cybersecurity Student, Astana IT University
+**Intizar Tech Team**
 GitHub: [mnasharifiya](https://github.com/mnasharifiya)
 
 ---
@@ -277,5 +262,3 @@ This project is currently private/internal unless a license is added later.
 ## 🌱 Project Vision
 
 Manufar wannan LMS ita ce samar da tsarin karatu na zamani ga INTIZAR Academy, inda admin, malamai, da ɗalibai za su iya aiki cikin tsari, tracking, accountability, da sauƙin amfani.
-
-The long-term goal is to support structured digital learning, student monitoring, academic reporting, and organized online/offline education workflows.
