@@ -2,6 +2,7 @@
 import { Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import { createAssignment, createGrade } from "../../lib/api";
+import { notifyUsers } from "../../lib/notify";
 
 const emptyForm = {
   groupId: "",
@@ -105,6 +106,13 @@ export default function InstructorAssignments({
 
     setForm(emptyForm);
     setFiles([]);
+    await notifyUsers(
+      studentsInGroup(form.groupId).map((s: any) => s.id),
+      "assignment",
+      "New Assignment Posted",
+      form.title
+    );
+
     alert("Assignment created.");
   }
 
@@ -138,6 +146,13 @@ export default function InstructorAssignments({
 
     setGradeModal(null);
     setGradeForm({ score: "", feedback: "" });
+    await notifyUsers(
+      [gradeModal.studentId],
+      "grade",
+      "Assignment Graded",
+      `Your assignment has been graded: ${score}%`
+    );
+
     alert("Assignment graded.");
   }
 
@@ -599,3 +614,5 @@ const modal: CSSProperties = {
   padding:24,
   boxShadow:"0 20px 60px rgba(0,0,0,.25)",
 };
+
+

@@ -17,6 +17,7 @@ import InstructorGroups from "./pages/instructor/Groups";
 import InstructorAssignments from "./pages/instructor/Assignments";
 import InstructorAttendance from "./pages/instructor/Attendance";
 import GroupChat from "./pages/common/GroupChat";
+import NotificationsPage from "./pages/common/Notifications";
 import { loadAllData } from "./lib/api";
 
 function App() {
@@ -77,6 +78,10 @@ function App() {
         return <StudentGrades user={currentUser} data={data} />;
       }
 
+      if (page === "notifications") {
+        return <NotificationsPage user={currentUser} data={data} setData={setData} />;
+      }
+
       if (page === "chat") {
         return <GroupChat user={currentUser} data={data} setData={setData} />;
       }
@@ -103,6 +108,10 @@ function App() {
 
       if (page === "grades") {
         return <GradeManagement user={currentUser} data={data} setData={setData} />;
+      }
+
+      if (page === "notifications") {
+        return <NotificationsPage user={currentUser} data={data} setData={setData} />;
       }
 
       if (page === "chat") {
@@ -132,6 +141,10 @@ function App() {
       return <AdminReports data={data} />;
     }
 
+    if (page === "notifications") {
+      return <NotificationsPage user={currentUser} data={data} setData={setData} />;
+    }
+
     if (page === "chat") {
       return <GroupChat user={currentUser} data={data} setData={setData} />;
     }
@@ -152,4 +165,5 @@ function App() {
 }
 
 export default App;
+
 

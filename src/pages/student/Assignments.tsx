@@ -2,6 +2,7 @@
 import { Card, Button } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import { createSubmission } from "../../lib/api";
+import { notifyUsers } from "../../lib/notify";
 
 export default function StudentAssignments({
   user,
@@ -67,6 +68,15 @@ export default function StudentAssignments({
 
     setSelectedAssignment(null);
     setFile(null);
+    if (myGroup?.instructorId) {
+      await notifyUsers(
+        [myGroup.instructorId],
+        "assignment",
+        "New Assignment Submission",
+        `${user.name} submitted: ${selectedAssignment.title}`
+      );
+    }
+
     alert("Assignment submitted.");
   }
 
@@ -343,3 +353,5 @@ const fileInputStyle: CSSProperties = {
   borderRadius:10,
   background:"#fff",
 };
+
+

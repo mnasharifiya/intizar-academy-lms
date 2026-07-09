@@ -7,6 +7,7 @@ import {
   Layers,
   BarChart3,
   MessageCircle,
+  Bell,
   LogOut,
   ClipboardList,
   CalendarCheck,
@@ -19,6 +20,7 @@ const adminNav = [
   { id: "courses", label: "Courses", icon: BookOpen },
   { id: "groups", label: "Groups", icon: Layers },
   { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "chat", label: "Group Chat", icon: MessageCircle },
 ];
 
@@ -29,6 +31,7 @@ const instructorNav = [
   { id: "assignments", label: "Assignments", icon: ClipboardList },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "grades", label: "Grades", icon: Award },
+  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "chat", label: "Group Chat", icon: MessageCircle },
 ];
 
@@ -38,6 +41,7 @@ const studentNav = [
   { id: "assignments", label: "Assignments", icon: ClipboardList },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "grades", label: "Grades", icon: Award },
+  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "chat", label: "Group Chat", icon: MessageCircle },
 ];
 
@@ -209,6 +213,12 @@ export default function AppLayout({
     </div>
   );
 }
+
+
+
+
+
+
 
 
 
