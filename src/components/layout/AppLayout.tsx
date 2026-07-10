@@ -87,20 +87,19 @@ export default function AppLayout({
         overflowY:"auto",
       }}>
         <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:28}}>
-          <div style={{
-            width:48,
-            height:48,
-            borderRadius:16,
-            background:"#fff",
-            color:C.primary,
-            display:"flex",
-            alignItems:"center",
-            justifyContent:"center",
-            fontWeight:900,
-            fontSize:18,
-          }}>
-            IA
-          </div>
+          <img
+            src="/intizar-logo.jpg"
+            alt="INTIZAR Academy Logo"
+            style={{
+              width:56,
+              height:56,
+              borderRadius:16,
+              objectFit:"contain",
+              background:"#fff",
+              padding:5,
+              flexShrink:0,
+            }}
+          />
 
           <div>
             <div style={{fontWeight:900,fontSize:18}}>{APP_NAME}</div>
@@ -205,3 +204,4 @@ export default function AppLayout({
     </div>
   );
 }
+

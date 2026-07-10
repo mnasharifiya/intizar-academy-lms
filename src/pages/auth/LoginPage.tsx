@@ -39,21 +39,20 @@ export default function LoginPage({ onLogin }: { onLogin: (user: any) => void })
         color:"#fff",
       }}>
         <div style={{maxWidth:520}}>
-          <div style={{
-            width:86,
-            height:86,
-            borderRadius:"50%",
-            background:"#fff",
-            marginBottom:24,
-            display:"flex",
-            alignItems:"center",
-            justifyContent:"center",
-            color:C.primary,
-            fontWeight:900,
-            fontSize:26,
-          }}>
-            IA
-          </div>
+          <img
+            src="/intizar-logo.jpg"
+            alt="INTIZAR Academy Logo"
+            style={{
+              width:96,
+              height:96,
+              borderRadius:"50%",
+              objectFit:"contain",
+              background:"#fff",
+              padding:8,
+              marginBottom:24,
+              boxShadow:"0 16px 35px rgba(0,0,0,.18)",
+            }}
+          />
 
           <h1 style={{fontSize:48,lineHeight:1.05,margin:"0 0 16px",fontWeight:900}}>
             {APP_NAME}
