@@ -1,8 +1,9 @@
 ﻿import { useMemo, useState, type CSSProperties } from "react";
 import { Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
-import { createLecture, createVideo } from "../../lib/api";
+import { createLecture, createVideo, loadAllData } from "../../lib/api";
 import { InstructorMaterialsManager } from "../../components/learning/Materials";
+import { notifyUsers } from "../../lib/notify";
 
 const emptyLecture = {
   groupId: "",
@@ -32,14 +33,30 @@ export default function InstructorTeaching({
   const [lectureForm, setLectureForm] = useState(emptyLecture);
   const [videoForm, setVideoForm] = useState(emptyVideo);
   const [filterGroup, setFilterGroup] = useState("all");
+  const [busy, setBusy] = useState(false);
 
   const groups = data?.groups ?? [];
+  const groupStudents = data?.groupStudents ?? [];
   const courses = data?.courses ?? [];
   const levelCourses = data?.levelCourses ?? [];
   const lectures = data?.lectures ?? [];
   const videos = data?.videos ?? [];
 
-  const myGroups = groups.filter((g: any) => g.instructorId === user.id);
+  const myGroups = groups.filter(
+    (g: any) => g.instructorId === user.id && g.isActive !== false
+  );
+
+  async function refreshFromSupabase() {
+    const fresh = await loadAllData();
+    setData(fresh);
+  }
+
+  function studentIdsInGroup(groupId: string) {
+    return groupStudents
+      .filter((gs: any) => gs.groupId === groupId)
+      .map((gs: any) => gs.studentId)
+      .filter(Boolean);
+  }
 
   const filteredLectures = useMemo(() => {
     return lectures
@@ -80,25 +97,48 @@ export default function InstructorTeaching({
       return;
     }
 
-    const newLecture = await createLecture({
-      groupId: lectureForm.groupId,
-      courseId: lectureForm.courseId,
-      instructorId: user.id,
-      hostStudentId: null,
-      title: lectureForm.title,
-      type: "online_discussion",
-      scheduledTime: new Date(lectureForm.scheduledTime).toISOString(),
-      status: "scheduled",
-      meetingUrl: lectureForm.meetingUrl,
-    });
+    const selectedGroup = myGroups.find((g: any) => g.id === lectureForm.groupId);
+    if (!selectedGroup) {
+      alert("You can only schedule lectures for your active assigned groups.");
+      return;
+    }
 
-    setData((d: any) => ({
-      ...d,
-      lectures: [...d.lectures, newLecture],
-    }));
+    try {
+      setBusy(true);
 
-    setLectureForm(emptyLecture);
-    alert("Online lecture scheduled.");
+      await createLecture({
+        groupId: lectureForm.groupId,
+        courseId: lectureForm.courseId,
+        instructorId: user.id,
+        hostStudentId: null,
+        title: lectureForm.title,
+        type: "online_discussion",
+        scheduledTime: new Date(lectureForm.scheduledTime).toISOString(),
+        status: "scheduled",
+        meetingUrl: lectureForm.meetingUrl,
+      });
+
+      await refreshFromSupabase();
+
+      try {
+        await notifyUsers(
+          studentIdsInGroup(lectureForm.groupId),
+          "lecture",
+          "New Lecture Scheduled",
+          lectureForm.title
+        );
+      } catch (notifyErr) {
+        console.warn("Lecture notification failed:", notifyErr);
+      }
+
+      setLectureForm(emptyLecture);
+      alert("Online lecture scheduled.");
+    } catch (err: any) {
+      console.error("Schedule lecture failed:", err);
+      alert(err?.message || "Failed to schedule lecture.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function publishVideo() {
@@ -107,26 +147,49 @@ export default function InstructorTeaching({
       return;
     }
 
-    const nextOrder =
-      videos.filter((v: any) => v.groupId === videoForm.groupId).length + 1;
+    const selectedGroup = myGroups.find((g: any) => g.id === videoForm.groupId);
+    if (!selectedGroup) {
+      alert("You can only publish videos for your active assigned groups.");
+      return;
+    }
 
-    const newVideo = await createVideo({
-      groupId: videoForm.groupId,
-      courseId: videoForm.courseId,
-      instructorId: user.id,
-      title: videoForm.title,
-      description: videoForm.description,
-      videoUrl: videoForm.videoUrl,
-      order: nextOrder,
-    });
+    try {
+      setBusy(true);
 
-    setData((d: any) => ({
-      ...d,
-      videos: [...d.videos, newVideo],
-    }));
+      const nextOrder =
+        videos.filter((v: any) => v.groupId === videoForm.groupId).length + 1;
 
-    setVideoForm(emptyVideo);
-    alert("Video lecture published.");
+      await createVideo({
+        groupId: videoForm.groupId,
+        courseId: videoForm.courseId,
+        instructorId: user.id,
+        title: videoForm.title,
+        description: videoForm.description,
+        videoUrl: videoForm.videoUrl,
+        order: nextOrder,
+      });
+
+      await refreshFromSupabase();
+
+      try {
+        await notifyUsers(
+          studentIdsInGroup(videoForm.groupId),
+          "system",
+          "New Recorded Lesson",
+          videoForm.title
+        );
+      } catch (notifyErr) {
+        console.warn("Video notification failed:", notifyErr);
+      }
+
+      setVideoForm(emptyVideo);
+      alert("Video lecture published.");
+    } catch (err: any) {
+      console.error("Publish video failed:", err);
+      alert(err?.message || "Failed to publish video.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -145,6 +208,7 @@ export default function InstructorTeaching({
         <button
           onClick={() => setFilterGroup("all")}
           style={chip(filterGroup === "all")}
+          disabled={busy}
         >
           All Groups
         </button>
@@ -154,6 +218,7 @@ export default function InstructorTeaching({
             key={g.id}
             onClick={() => setFilterGroup(g.id)}
             style={chip(filterGroup === g.id)}
+            disabled={busy}
           >
             {g.name}
           </button>
@@ -170,6 +235,7 @@ export default function InstructorTeaching({
               value={lectureForm.groupId}
               onChange={e => setLectureForm(f => ({...f,groupId:e.target.value,courseId:""}))}
               style={selectStyle}
+              disabled={busy}
             >
               <option value="">Select group</option>
               {myGroups.map((g: any) => (
@@ -181,7 +247,7 @@ export default function InstructorTeaching({
               value={lectureForm.courseId}
               onChange={e => setLectureForm(f => ({...f,courseId:e.target.value}))}
               style={selectStyle}
-              disabled={!lectureForm.groupId}
+              disabled={!lectureForm.groupId || busy}
             >
               <option value="">Select course</option>
               {coursesForGroup(lectureForm.groupId).map((c: any) => (
@@ -207,7 +273,9 @@ export default function InstructorTeaching({
               placeholder="Online meeting link e.g. Zoom / Google Meet"
             />
 
-            <Button onClick={scheduleLecture}>Schedule Lecture</Button>
+            <Button onClick={scheduleLecture} disabled={busy}>
+              {busy ? "Saving..." : "Schedule Lecture"}
+            </Button>
           </div>
         </Card>
 
@@ -220,6 +288,7 @@ export default function InstructorTeaching({
               value={videoForm.groupId}
               onChange={e => setVideoForm(f => ({...f,groupId:e.target.value,courseId:""}))}
               style={selectStyle}
+              disabled={busy}
             >
               <option value="">Select group</option>
               {myGroups.map((g: any) => (
@@ -231,7 +300,7 @@ export default function InstructorTeaching({
               value={videoForm.courseId}
               onChange={e => setVideoForm(f => ({...f,courseId:e.target.value}))}
               style={selectStyle}
-              disabled={!videoForm.groupId}
+              disabled={!videoForm.groupId || busy}
             >
               <option value="">Select course</option>
               {coursesForGroup(videoForm.groupId).map((c: any) => (
@@ -256,9 +325,12 @@ export default function InstructorTeaching({
               onChange={e => setVideoForm(f => ({...f,description:e.target.value}))}
               placeholder="Video description"
               style={textareaStyle}
+              disabled={busy}
             />
 
-            <Button onClick={publishVideo}>Publish Video</Button>
+            <Button onClick={publishVideo} disabled={busy}>
+              {busy ? "Saving..." : "Publish Video"}
+            </Button>
           </div>
         </Card>
       </div>
@@ -281,7 +353,7 @@ export default function InstructorTeaching({
                 <div style={{display:"flex",justifyContent:"space-between",gap:12}}>
                   <div>
                     <h3 style={{margin:"0 0 5px",color:C.text}}>{lecture.title}</h3>
-                    <div style={meta}>{groupName(lecture.groupId)} • {courseName(lecture.courseId)}</div>
+                    <div style={meta}>{groupName(lecture.groupId)} - {courseName(lecture.courseId)}</div>
                     <div style={meta}>{formatDate(lecture.scheduledTime)}</div>
 
                     {lecture.meetingUrl && (
@@ -317,7 +389,7 @@ export default function InstructorTeaching({
 
                   <div style={{flex:1}}>
                     <h3 style={{margin:"0 0 5px",color:C.text}}>{video.title}</h3>
-                    <div style={meta}>{groupName(video.groupId)} • {courseName(video.courseId)}</div>
+                    <div style={meta}>{groupName(video.groupId)} - {courseName(video.courseId)}</div>
                     <p style={{margin:"8px 0",fontSize:13,color:C.muted,lineHeight:1.6}}>
                       {video.description || "No description added."}
                     </p>
@@ -332,6 +404,7 @@ export default function InstructorTeaching({
           </div>
         </Card>
       </div>
+
       <InstructorMaterialsManager user={user} data={data} setData={setData} />
     </div>
   );
@@ -492,5 +565,3 @@ const videoIcon: CSSProperties = {
   fontWeight:900,
   flexShrink:0,
 };
-
-

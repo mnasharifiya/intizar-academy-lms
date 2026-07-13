@@ -6,6 +6,8 @@ import {
   updateGroup,
   addGroupStudent,
   removeGroupStudent,
+  loadAllData,
+  addAdminGroup,
 } from "../../lib/api";
 
 const emptyForm = {
@@ -17,19 +19,32 @@ const emptyForm = {
   isActive: true,
 };
 
-export default function GroupsPage({ data, setData }: { data: any; setData: any }) {
+export default function GroupsPage({ user, data, setData }: { user?: any; data: any; setData: any }) {
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [studentModal, setStudentModal] = useState<any>(null);
   const [form, setForm] = useState(emptyForm);
+  const [busy, setBusy] = useState(false);
 
   const groups = data?.groups ?? [];
   const levels = data?.levels ?? [];
   const users = data?.users ?? [];
   const groupStudents = data?.groupStudents ?? [];
+  const adminGroups = data?.adminGroups ?? [];
+  const currentAdminGroupLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
 
   const instructors = users.filter((u: any) => u.role === "instructor");
   const students = users.filter((u: any) => u.role === "student");
+
+  async function refreshFromSupabase() {
+    const fresh = await loadAllData();
+    setData(fresh);
+
+    if (studentModal?.id) {
+      const updatedModalGroup = fresh.groups.find((g: any) => g.id === studentModal.id);
+      if (updatedModalGroup) setStudentModal(updatedModalGroup);
+    }
+  }
 
   const filteredGroups = useMemo(() => {
     const s = search.toLowerCase();
@@ -67,100 +82,119 @@ export default function GroupsPage({ data, setData }: { data: any; setData: any 
       return;
     }
 
-    if (modal === "add") {
-      const newGroup = await createGroup({
-        name: form.name,
-        levelId: form.levelId,
-        instructorId: form.instructorId,
-        maxStudents: Number(form.maxStudents) || 15,
-        isActive: form.isActive,
-      });
+    try {
+      setBusy(true);
 
-      setData((d: any) => ({
-        ...d,
-        groups: [...d.groups, newGroup],
-      }));
-    } else {
-      const updated = await updateGroup(form.id, {
-        name: form.name,
-        levelId: form.levelId,
-        instructorId: form.instructorId,
-        maxStudents: Number(form.maxStudents) || 15,
-        isActive: form.isActive,
-      });
+      if (modal === "add") {
+        const newGroup = await createGroup({
+          name: form.name,
+          levelId: form.levelId,
+          instructorId: form.instructorId,
+          maxStudents: Number(form.maxStudents) || 15,
+          isActive: form.isActive,
+        });
 
-      setData((d: any) => ({
-        ...d,
-        groups: d.groups.map((g: any) => (g.id === updated.id ? updated : g)),
-      }));
+        if (user?.role === "admin" && currentAdminGroupLinks.length > 0) {
+          await addAdminGroup(user.id, newGroup.id);
+        }
+      } else {
+        await updateGroup(form.id, {
+          name: form.name,
+          levelId: form.levelId,
+          instructorId: form.instructorId,
+          maxStudents: Number(form.maxStudents) || 15,
+          isActive: form.isActive,
+        });
+      }
+
+      await refreshFromSupabase();
+      setModal(null);
+      setForm(emptyForm);
+    } catch (err: any) {
+      alert(err?.message || "Failed to save group.");
+    } finally {
+      setBusy(false);
     }
-
-    setModal(null);
-    setForm(emptyForm);
   }
 
   async function toggleActive(group: any) {
-    const updated = await updateGroup(group.id, {
-      isActive: !group.isActive,
-    });
-
-    setData((d: any) => ({
-      ...d,
-      groups: d.groups.map((g: any) => (g.id === updated.id ? updated : g)),
-    }));
+    try {
+      setBusy(true);
+      await updateGroup(group.id, {
+        isActive: !group.isActive,
+      });
+      await refreshFromSupabase();
+    } catch (err: any) {
+      alert(err?.message || "Failed to update group status.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function addStudentToGroup(group: any, student: any) {
-    await addGroupStudent(group.id, student.id);
-
-    setData((d: any) => ({
-      ...d,
-      groupStudents: [...d.groupStudents, { groupId: group.id, studentId: student.id }],
-    }));
+    try {
+      setBusy(true);
+      await addGroupStudent(group.id, student.id);
+      await refreshFromSupabase();
+    } catch (err: any) {
+      alert(err?.message || "Failed to add student to group.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function removeStudentFromGroup(group: any, student: any) {
-    await removeGroupStudent(group.id, student.id);
-
-    setData((d: any) => ({
-      ...d,
-      groupStudents: d.groupStudents.filter(
-        (gs: any) => !(gs.groupId === group.id && gs.studentId === student.id)
-      ),
-    }));
+    try {
+      setBusy(true);
+      await removeGroupStudent(group.id, student.id);
+      await refreshFromSupabase();
+    } catch (err: any) {
+      alert(err?.message || "Failed to remove student from group.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function autoAssign() {
-    let assigned = 0;
-    const current = [...groupStudents];
+    try {
+      setBusy(true);
 
-    for (const student of students) {
-      if (!student.levelId) continue;
-      if (current.some((gs: any) => gs.studentId === student.id)) continue;
+      let assigned = 0;
+      const current = [...groupStudents];
 
-      const availableGroups = groups
-        .filter((g: any) => g.levelId === student.levelId && g.isActive)
-        .filter((g: any) => current.filter((gs: any) => gs.groupId === g.id).length < g.maxStudents)
-        .sort((a: any, b: any) => {
-          const ac = current.filter((gs: any) => gs.groupId === a.id).length;
-          const bc = current.filter((gs: any) => gs.groupId === b.id).length;
-          return ac - bc;
-        });
+      for (const student of students) {
+        if (!student.levelId) continue;
+        if (current.some((gs: any) => gs.studentId === student.id)) continue;
 
-      const target = availableGroups[0];
-      if (!target) continue;
+        const availableGroups = groups
+          .filter((g: any) => g.levelId === student.levelId && g.isActive)
+          .filter((g: any) => current.filter((gs: any) => gs.groupId === g.id).length < g.maxStudents)
+          .sort((a: any, b: any) => {
+            const ac = current.filter((gs: any) => gs.groupId === a.id).length;
+            const bc = current.filter((gs: any) => gs.groupId === b.id).length;
+            return ac - bc;
+          });
 
-      await addGroupStudent(target.id, student.id);
-      current.push({ groupId: target.id, studentId: student.id });
-      assigned++;
+        const target = availableGroups[0];
+        if (!target) continue;
+
+        await addGroupStudent(target.id, student.id);
+        current.push({ groupId: target.id, studentId: student.id });
+        assigned++;
+      }
+
+      await refreshFromSupabase();
+
+      if (assigned === 0) {
+        alert("No students assigned. Make sure groups are active and students have the same level as the group.");
+      } else {
+        alert(assigned + " student(s) assigned.");
+      }
+    } catch (err: any) {
+      alert(err?.message || "Auto-assign failed.");
+    } finally {
+      setBusy(false);
     }
-
-    setData((d: any) => ({
-      ...d,
-      groupStudents: current,
-    }));
-
-    alert(assigned + " student(s) assigned.");
   }
 
   function groupMembers(group: any) {
@@ -178,25 +212,57 @@ export default function GroupsPage({ data, setData }: { data: any; setData: any 
     });
   }
 
+  function assignedElsewhereStudents(group: any) {
+    return students.filter((s: any) => {
+      const sameLevel = s.levelId === group.levelId;
+      const alreadyInOtherGroup = groupStudents.some(
+        (gs: any) => gs.studentId === s.id && gs.groupId !== group.id
+      );
+      return sameLevel && alreadyInOtherGroup;
+    });
+  }
+
+  function studentsInLevel(group: any) {
+    return students.filter((s: any) => s.levelId === group.levelId);
+  }
+
+  const activeGroups = groups.filter((g: any) => g.isActive).length;
+  const inactiveGroups = groups.length - activeGroups;
+
   return (
     <div>
       <PageHeader
         title="Groups"
-        sub={groups.length + " groups in the system"}
+        sub={groups.length + " groups · " + activeGroups + " active · " + inactiveGroups + " inactive"}
         action={
           <div style={{display:"flex",gap:10}}>
-            <Button variant="secondary" onClick={autoAssign}>Auto-Assign</Button>
-            <Button onClick={openAdd}>+ New Group</Button>
+            <Button variant="secondary" onClick={refreshFromSupabase} disabled={busy}>Refresh</Button>
+            <Button variant="secondary" onClick={autoAssign} disabled={busy}>Auto-Assign</Button>
+            <Button onClick={openAdd} disabled={busy}>+ New Group</Button>
           </div>
         }
       />
 
       <Card>
-        <Input
-          value={search}
-          onChange={setSearch}
-          placeholder="Search by group, level, or instructor"
-        />
+        <div style={{display:"grid",gap:10}}>
+          <Input
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by group, level, or instructor"
+          />
+
+          <div style={{
+            padding:12,
+            borderRadius:12,
+            background:"#f8fafc",
+            color:C.muted,
+            fontSize:13,
+            lineHeight:1.7,
+          }}>
+            <strong style={{color:C.text}}>Note:</strong> Auto-Assign only uses active groups. 
+            Manual student assignment still works from “Manage Students”, but students only appear if they are in the same level and not already assigned to another group.
+          </div>
+        </div>
       </Card>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(330px,1fr))",gap:18,marginTop:18}}>
@@ -237,12 +303,16 @@ export default function GroupsPage({ data, setData }: { data: any; setData: any 
                 <div style={{height:8,background:"#f1f5f9",borderRadius:99,overflow:"hidden"}}>
                   <div style={{height:"100%",width:pct+"%",background:C.primary,borderRadius:99}} />
                 </div>
+
+                <div style={{fontSize:12,color:C.muted,marginTop:8}}>
+                  {studentsInLevel(group).length} student(s) in this level · {availableStudents(group).length} available
+                </div>
               </div>
 
               <div style={{display:"flex",gap:8,marginTop:18,flexWrap:"wrap"}}>
-                <Button variant="secondary" onClick={() => openEdit(group)}>Edit</Button>
-                <Button variant="secondary" onClick={() => setStudentModal(group)}>Manage Students</Button>
-                <Button variant={group.isActive ? "danger" : "primary"} onClick={() => toggleActive(group)}>
+                <Button variant="secondary" onClick={() => openEdit(group)} disabled={busy}>Edit</Button>
+                <Button variant="secondary" onClick={() => setStudentModal(group)} disabled={busy}>Manage Students</Button>
+                <Button variant={group.isActive ? "danger" : "primary"} onClick={() => toggleActive(group)} disabled={busy}>
                   {group.isActive ? "Deactivate" : "Activate"}
                 </Button>
               </div>
@@ -303,8 +373,8 @@ export default function GroupsPage({ data, setData }: { data: any; setData: any 
             </div>
 
             <div style={{display:"flex",gap:10,marginTop:18}}>
-              <Button onClick={saveGroup}>Save Group</Button>
-              <Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
+              <Button onClick={saveGroup} disabled={busy}>{busy ? "Saving..." : "Save Group"}</Button>
+              <Button variant="secondary" onClick={() => setModal(null)} disabled={busy}>Cancel</Button>
             </div>
           </div>
         </div>
@@ -316,6 +386,21 @@ export default function GroupsPage({ data, setData }: { data: any; setData: any 
             <h2 style={{marginTop:0}}>Manage Students</h2>
             <p style={{color:C.muted,marginTop:-8}}>{studentModal.name}</p>
 
+            <div style={{
+              background:"#f8fafc",
+              borderRadius:12,
+              padding:12,
+              marginBottom:16,
+              fontSize:13,
+              color:C.muted,
+              lineHeight:1.7,
+            }}>
+              <div><strong style={{color:C.text}}>Level students:</strong> {studentsInLevel(studentModal).length}</div>
+              <div><strong style={{color:C.text}}>Members here:</strong> {groupMembers(studentModal).length}</div>
+              <div><strong style={{color:C.text}}>Available:</strong> {availableStudents(studentModal).length}</div>
+              <div><strong style={{color:C.text}}>Already assigned elsewhere:</strong> {assignedElsewhereStudents(studentModal).length}</div>
+            </div>
+
             <h3>Members</h3>
             {groupMembers(studentModal).length === 0 && <p style={{color:C.muted}}>No students in this group yet.</p>}
 
@@ -325,14 +410,18 @@ export default function GroupsPage({ data, setData }: { data: any; setData: any 
                   <strong>{student.name}</strong>
                   <div style={{fontSize:12,color:C.muted}}>{student.email}</div>
                 </div>
-                <button onClick={() => removeStudentFromGroup(studentModal, student)}>
+                <button disabled={busy} onClick={() => removeStudentFromGroup(studentModal, student)}>
                   Remove
                 </button>
               </div>
             ))}
 
             <h3 style={{marginTop:20}}>Available Students</h3>
-            {availableStudents(studentModal).length === 0 && <p style={{color:C.muted}}>No available students for this level.</p>}
+            {availableStudents(studentModal).length === 0 && (
+              <p style={{color:C.muted}}>
+                No available students for this level. This means there are no students in this level, or the students are already assigned to another group.
+              </p>
+            )}
 
             {availableStudents(studentModal).map((student: any) => (
               <div key={student.id} style={studentRow}>
@@ -340,14 +429,15 @@ export default function GroupsPage({ data, setData }: { data: any; setData: any 
                   <strong>{student.name}</strong>
                   <div style={{fontSize:12,color:C.muted}}>{student.email}</div>
                 </div>
-                <button onClick={() => addStudentToGroup(studentModal, student)}>
+                <button disabled={busy} onClick={() => addStudentToGroup(studentModal, student)}>
                   Add
                 </button>
               </div>
             ))}
 
-            <div style={{marginTop:18}}>
-              <Button variant="secondary" onClick={() => setStudentModal(null)}>Close</Button>
+            <div style={{marginTop:18,display:"flex",gap:10}}>
+              <Button variant="secondary" onClick={refreshFromSupabase} disabled={busy}>Refresh</Button>
+              <Button variant="secondary" onClick={() => setStudentModal(null)} disabled={busy}>Close</Button>
             </div>
           </div>
         </div>

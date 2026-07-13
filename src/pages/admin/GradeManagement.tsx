@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState, type CSSProperties } from "react";
 import { Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
-import { createGrade } from "../../lib/api";
+import { createGrade, loadAllData } from "../../lib/api";
 
 const emptyForm = {
   groupId: "",
@@ -23,6 +23,7 @@ export default function GradeManagement({
 }) {
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const users = data?.users ?? [];
   const groups = data?.groups ?? [];
@@ -34,9 +35,26 @@ export default function GradeManagement({
   const visibleGroups =
     user.role === "admin"
       ? groups
-      : groups.filter((g: any) => g.instructorId === user.id);
+      : groups.filter((g: any) => g.instructorId === user.id && g.isActive !== false);
 
-  const selectedGroup = groups.find((g: any) => g.id === form.groupId);
+  const visibleGroupIds = new Set(visibleGroups.map((g: any) => g.id));
+  const visibleStudentIds = new Set(
+    groupStudents
+      .filter((gs: any) => visibleGroupIds.has(gs.groupId))
+      .map((gs: any) => gs.studentId)
+  );
+
+  const visibleGrades =
+    user.role === "admin"
+      ? grades
+      : grades.filter((g: any) => g.gradedBy === user.id && visibleStudentIds.has(g.studentId));
+
+  async function refreshFromSupabase() {
+    const fresh = await loadAllData();
+    setData(fresh);
+  }
+
+  const selectedGroup = visibleGroups.find((g: any) => g.id === form.groupId);
 
   const studentsInGroup = selectedGroup
     ? groupStudents
@@ -55,7 +73,7 @@ export default function GradeManagement({
   const filteredGrades = useMemo(() => {
     const s = search.toLowerCase();
 
-    return grades.filter((g: any) => {
+    return visibleGrades.filter((g: any) => {
       const student = users.find((u: any) => u.id === g.studentId);
       const grader = users.find((u: any) => u.id === g.gradedBy);
 
@@ -66,11 +84,26 @@ export default function GradeManagement({
         g.type?.toLowerCase().includes(s)
       );
     });
-  }, [grades, users, search]);
+  }, [visibleGrades, users, search]);
 
   async function saveGrade() {
     if (!form.groupId || !form.studentId || !form.courseId || !form.score) {
       alert("Group, student, course, and score are required.");
+      return;
+    }
+
+    const selectedGroupForSave = visibleGroups.find((g: any) => g.id === form.groupId);
+    if (!selectedGroupForSave) {
+      alert("You can only grade students from your own active assigned groups.");
+      return;
+    }
+
+    const studentBelongsToGroup = groupStudents.some(
+      (gs: any) => gs.groupId === form.groupId && gs.studentId === form.studentId
+    );
+
+    if (!studentBelongsToGroup) {
+      alert("This student is not assigned to the selected group.");
       return;
     }
 
@@ -81,32 +114,38 @@ export default function GradeManagement({
       return;
     }
 
-    const newGrade = await createGrade({
-      studentId: form.studentId,
-      lectureId: null,
-      assignmentId: null,
-      type: form.type as any,
-      score,
-      feedback: form.feedback,
-      gradedBy: user.id,
-    });
+    try {
+      setBusy(true);
 
-    setData((d: any) => ({
-      ...d,
-      grades: [...d.grades, newGrade],
-    }));
+      await createGrade({
+        studentId: form.studentId,
+        lectureId: null,
+        assignmentId: null,
+        type: form.type as any,
+        score,
+        feedback: form.feedback,
+        gradedBy: user.id,
+      });
 
-    setForm({
-      ...emptyForm,
-      groupId: form.groupId,
-      courseId: form.courseId,
-    });
+      await refreshFromSupabase();
 
-    alert("Grade saved successfully.");
+      setForm({
+        ...emptyForm,
+        groupId: form.groupId,
+        courseId: form.courseId,
+      });
+
+      alert("Grade saved successfully.");
+    } catch (err: any) {
+      console.error("Save grade failed:", err);
+      alert(err?.message || "Failed to save grade.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function studentAverage(studentId: string) {
-    const list = grades.filter((g: any) => g.studentId === studentId);
+    const list = visibleGrades.filter((g: any) => g.studentId === studentId);
     if (!list.length) return "-";
 
     const avg = Math.round(
@@ -191,10 +230,10 @@ export default function GradeManagement({
               style={selectStyle}
             >
               <option value="assignment">Assignment</option>
-              <option value="lecture">Lecture Activity</option>
-              <option value="exam">Exam</option>
               <option value="participation">Participation</option>
-              <option value="attendance">Attendance</option>
+              <option value="presentation">Presentation</option>
+              <option value="communication">Communication</option>
+              <option value="leadership">Leadership</option>
             </select>
 
             <Input
@@ -211,7 +250,7 @@ export default function GradeManagement({
               style={textareaStyle}
             />
 
-            <Button onClick={saveGrade}>Save Grade</Button>
+            <Button onClick={saveGrade} disabled={busy}>{busy ? "Saving..." : "Save Grade"}</Button>
           </div>
         </Card>
 
@@ -250,7 +289,7 @@ export default function GradeManagement({
         <div style={{display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",marginBottom:18}}>
           <div>
             <h2 style={sectionTitle}>Recent Grade Records</h2>
-            <p style={sectionSub}>All saved grades in the system</p>
+            <p style={sectionSub}>{user.role === "admin" ? "All saved grades in the system" : "Only grades you recorded for your assigned students"}</p>
           </div>
 
           <div style={{width:280}}>
@@ -434,3 +473,4 @@ const typeBadge: CSSProperties = {
   fontSize:12,
   fontWeight:900,
 };
+

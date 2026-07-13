@@ -45,26 +45,11 @@ export interface Group {
   instructorId: string;
   maxStudents: number;
   isActive: boolean;
-  instructorStatus?: "pending" | "approved" | "rejected";
-  instructorAssignedBy?: string | null;
-  instructorApprovedBy?: string | null;
-  instructorApprovedAt?: string | null;
 }
 
 export interface GroupStudent {
   groupId: string;
   studentId: string;
-  status?: "pending" | "approved" | "rejected";
-  createdBy?: string | null;
-  approvedBy?: string | null;
-  approvedAt?: string | null;
-  createdAt?: string | null;
-}
-
-export interface AdminGroup {
-  adminId: string;
-  groupId: string;
-  createdAt: string;
 }
 
 export interface AdminGroup {
@@ -232,7 +217,6 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
-
 
 
 

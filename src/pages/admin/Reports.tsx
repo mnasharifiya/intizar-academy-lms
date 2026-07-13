@@ -2,7 +2,7 @@
 import { Card } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 
-export default function AdminReports({ data }: { data: any }) {
+export default function AdminReports({ user, data }: { user?: any; data: any }) {
   const users = data?.users ?? [];
   const groups = data?.groups ?? [];
   const levels = data?.levels ?? [];
@@ -16,6 +16,15 @@ export default function AdminReports({ data }: { data: any }) {
   const grades = data?.grades ?? [];
   const videos = data?.videos ?? [];
   const materials = data?.learningMaterials ?? [];
+  const adminGroups = data?.adminGroups ?? [];
+
+  const currentAdminLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
+  const isRestrictedAdmin = user?.role === "admin" && currentAdminLinks.length > 0;
+
+  const reportScope =
+    isRestrictedAdmin
+      ? groups.map((g: any) => g.name).join(", ") || "No assigned groups"
+      : "All groups";
 
   const students = users.filter((u: any) => u.role === "student");
   const instructors = users.filter((u: any) => u.role === "instructor");
@@ -118,6 +127,15 @@ export default function AdminReports({ data }: { data: any }) {
     return students.filter((s: any) => levelIds.includes(s.levelId)).length;
   }
 
+  const scopeRows = groups.map((group: any) => ({
+    group: group.name,
+    program: levelName(group.levelId),
+    instructor: userName(group.instructorId),
+    students: groupMembers(group.id).length,
+    capacity: group.maxStudents,
+    status: group.isActive ? "Active" : "Inactive",
+  }));
+
   const userRows = [
     { role: "Admin", count: admins.length },
     { role: "Instructor", count: instructors.length },
@@ -180,6 +198,14 @@ export default function AdminReports({ data }: { data: any }) {
     .filter((row: any) => row.riskReason !== "Normal");
 
   const sections = [
+    {
+      title: "Report Scope",
+      sub: isRestrictedAdmin
+        ? "This report contains only the groups assigned to this admin."
+        : "This report contains all groups because this account is Main Controller.",
+      rows: scopeRows,
+      filename: "intizar-report-scope.xls",
+    },
     { title: "User Summary", sub: "Total users by role", rows: userRows, filename: "intizar-user-summary.xls" },
     { title: "Group Performance", sub: "Students, attendance, grades, and submission rate per group", rows: groupRows, filename: "intizar-group-performance.xls" },
     { title: "Course Performance", sub: "Course usage, lectures, assignments, videos, materials, and average grade", rows: courseRows, filename: "intizar-course-performance.xls" },
@@ -193,7 +219,7 @@ export default function AdminReports({ data }: { data: any }) {
           <div style={eyebrow}>Admin Reports</div>
           <h1 style={heroTitle}>Platform Analytics & Performance</h1>
           <p style={heroSub}>
-            Download reports as spreadsheet tables or print/save them as PDF.
+            Download reports as spreadsheet tables or print/save them as PDF. Report scope: ${reportScope}.
           </p>
         </div>
 
@@ -609,3 +635,4 @@ const outlineButton: CSSProperties = {
   fontWeight:900,
   cursor:"pointer",
 };
+

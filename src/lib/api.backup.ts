@@ -1,9 +1,9 @@
 ﻿// @ts-nocheck
 import { supabase } from './supabase';
 import type {
-  AppUser, Level, Course, LevelCourse, Group, GroupStudent, AdminGroup,
+  AppUser, Level, Course, LevelCourse, Group, GroupStudent,
   Lecture, Attendance, Assignment, AssignmentFile, Submission,
-  Grade, Chat, Notification, Video, LearningMaterial, AppData
+  Grade, Chat, Notification, Video, LearningMaterial, AppData, AdminGroup
 } from './types';
 
 // â”€â”€â”€ Row mappers (DB â†’ App) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -53,10 +53,6 @@ function mapGroup(row: Record<string, unknown>): Group {
     instructorId: (row.instructor_id as string) ?? '',
     maxStudents: (row.max_students as number) ?? 20,
     isActive: row.is_active as boolean,
-    instructorStatus: (row.instructor_status as any) ?? "approved",
-    instructorAssignedBy: (row.instructor_assigned_by as string | null) ?? null,
-    instructorApprovedBy: (row.instructor_approved_by as string | null) ?? null,
-    instructorApprovedAt: (row.instructor_approved_at as string | null) ?? null,
   };
 }
 
@@ -285,15 +281,7 @@ export async function loadAllData(): Promise<AppData> {
     groups: (groupsRes.data ?? []).map((r) => mapGroup(r as Record<string, unknown>)),
     groupStudents: (groupStudentsRes.data ?? []).map((r) => {
       const row = r as Record<string, unknown>;
-      return {
-        groupId: row.group_id as string,
-        studentId: row.student_id as string,
-        status: (row.status as any) ?? "approved",
-        createdBy: (row.created_by as string | null) ?? null,
-        approvedBy: (row.approved_by as string | null) ?? null,
-        approvedAt: (row.approved_at as string | null) ?? null,
-        createdAt: (row.created_at as string | null) ?? null,
-      } as GroupStudent;
+      return { groupId: row.group_id as string, studentId: row.student_id as string } as GroupStudent;
     }),
     lectures: (lecturesRes.data ?? []).map((r) => mapLecture(r as Record<string, unknown>)),
     attendance: (attendanceRes.data ?? []).map((r) => mapAttendance(r as Record<string, unknown>)),
@@ -1150,119 +1138,3 @@ export async function removeAdminGroup(adminId: string, groupId: string): Promis
 
   if (error) throw error;
 }
-
-// ─── GROUP APPROVALS ─────────────────────────────────────
-// Main Controller creates users.
-// Restricted admin approves/rejects users assigned to his groups.
-
-export async function addGroupStudentPending(
-  groupId: string,
-  studentId: string,
-  createdBy: string,
-  status: "pending" | "approved" = "pending"
-): Promise<void> {
-  const { error } = await supabase
-    .from('group_students')
-    .upsert(
-      {
-        group_id: groupId,
-        student_id: studentId,
-        status,
-        created_by: createdBy,
-        approved_by: status === "approved" ? createdBy : null,
-        approved_at: status === "approved" ? new Date().toISOString() : null,
-      },
-      { onConflict: 'group_id,student_id' }
-    );
-
-  if (error) throw error;
-}
-
-export async function approveGroupStudent(
-  groupId: string,
-  studentId: string,
-  approvedBy: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('group_students')
-    .update({
-      status: 'approved',
-      approved_by: approvedBy,
-      approved_at: new Date().toISOString(),
-    })
-    .eq('group_id', groupId)
-    .eq('student_id', studentId);
-
-  if (error) throw error;
-}
-
-export async function rejectGroupStudent(
-  groupId: string,
-  studentId: string,
-  approvedBy: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('group_students')
-    .update({
-      status: 'rejected',
-      approved_by: approvedBy,
-      approved_at: new Date().toISOString(),
-    })
-    .eq('group_id', groupId)
-    .eq('student_id', studentId);
-
-  if (error) throw error;
-}
-
-export async function assignInstructorToGroupPending(
-  groupId: string,
-  instructorId: string,
-  assignedBy: string,
-  status: "pending" | "approved" = "pending"
-): Promise<void> {
-  const { error } = await supabase
-    .from('groups')
-    .update({
-      instructor_id: instructorId,
-      instructor_status: status,
-      instructor_assigned_by: assignedBy,
-      instructor_approved_by: status === "approved" ? assignedBy : null,
-      instructor_approved_at: status === "approved" ? new Date().toISOString() : null,
-    })
-    .eq('id', groupId);
-
-  if (error) throw error;
-}
-
-export async function approveGroupInstructor(
-  groupId: string,
-  approvedBy: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('groups')
-    .update({
-      instructor_status: 'approved',
-      instructor_approved_by: approvedBy,
-      instructor_approved_at: new Date().toISOString(),
-    })
-    .eq('id', groupId);
-
-  if (error) throw error;
-}
-
-export async function rejectGroupInstructor(
-  groupId: string,
-  approvedBy: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('groups')
-    .update({
-      instructor_status: 'rejected',
-      instructor_approved_by: approvedBy,
-      instructor_approved_at: new Date().toISOString(),
-    })
-    .eq('id', groupId);
-
-  if (error) throw error;
-}
-

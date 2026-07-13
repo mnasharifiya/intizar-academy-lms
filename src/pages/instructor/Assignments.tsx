@@ -1,7 +1,7 @@
 ﻿import { useState, type CSSProperties } from "react";
 import { Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
-import { createAssignment, createGrade, uploadAssignmentFile, getSubmissionFileUrl } from "../../lib/api";
+import { createAssignment, createGrade, uploadAssignmentFile, getSubmissionFileUrl, loadAllData } from "../../lib/api";
 import { notifyUsers } from "../../lib/notify";
 
 const emptyForm = {
@@ -26,6 +26,7 @@ export default function InstructorAssignments({
   const [files, setFiles] = useState<File[]>([]);
   const [gradeModal, setGradeModal] = useState<any>(null);
   const [gradeForm, setGradeForm] = useState({ score: "", feedback: "" });
+  const [busy, setBusy] = useState(false);
 
   const groups = data?.groups ?? [];
   const courses = data?.courses ?? [];
@@ -36,7 +37,12 @@ export default function InstructorAssignments({
   const submissions = data?.submissions ?? [];
   const grades = data?.grades ?? [];
 
-  const myGroups = groups.filter((g: any) => g.instructorId === user.id);
+  const myGroups = groups.filter((g: any) => g.instructorId === user.id && g.isActive !== false);
+
+  async function refreshFromSupabase() {
+    const fresh = await loadAllData();
+    setData(fresh);
+  }
 
   const allMyAssignments = assignments
     .filter((a: any) => myGroups.some((g: any) => g.id === a.groupId))
@@ -46,6 +52,9 @@ export default function InstructorAssignments({
     filterGroupId === "all"
       ? allMyAssignments
       : allMyAssignments.filter((a: any) => a.groupId === filterGroupId);
+
+  const myAssignmentIds = new Set(allMyAssignments.map((a: any) => a.id));
+  const mySubmissions = submissions.filter((s: any) => myAssignmentIds.has(s.assignmentId));
 
   function coursesForGroup(groupId: string) {
     const group = myGroups.find((g: any) => g.id === groupId);
@@ -105,43 +114,54 @@ export default function InstructorAssignments({
       return;
     }
 
-    const newAssignment = await createAssignment({
-      groupId: form.groupId,
-      courseId: form.courseId,
-      title: form.title,
-      description: form.description,
-      dueDate: new Date(form.dueDate).toISOString(),
-      createdBy: user.id,
-      files: [],
-    });
-
-    const uploadedFiles = [];
-
-    for (const file of files) {
-      const uploaded = await uploadAssignmentFile(newAssignment.id, file);
-      uploadedFiles.push(uploaded);
+    const selectedGroup = myGroups.find((g: any) => g.id === form.groupId);
+    if (!selectedGroup) {
+      alert("You can only create assignments for your active assigned groups.");
+      return;
     }
 
-    const assignmentWithFiles = {
-      ...newAssignment,
-      files: uploadedFiles,
-    };
+    const notifyStudentIds = studentsInGroup(form.groupId).map((s: any) => s.id);
+    const assignmentTitle = form.title;
 
-    setData((d: any) => ({
-      ...d,
-      assignments: [...d.assignments, assignmentWithFiles],
-    }));
+    try {
+      setBusy(true);
 
-    setForm(emptyForm);
-    setFiles([]);
-    await notifyUsers(
-      studentsInGroup(form.groupId).map((s: any) => s.id),
-      "assignment",
-      "New Assignment Posted",
-      form.title
-    );
+      const newAssignment = await createAssignment({
+        groupId: form.groupId,
+        courseId: form.courseId,
+        title: form.title,
+        description: form.description,
+        dueDate: new Date(form.dueDate).toISOString(),
+        createdBy: user.id,
+        files: [],
+      });
 
-    alert("Assignment created.");
+      for (const file of files) {
+        await uploadAssignmentFile(newAssignment.id, file);
+      }
+
+      await refreshFromSupabase();
+
+      try {
+        await notifyUsers(
+          notifyStudentIds,
+          "assignment",
+          "New Assignment Posted",
+          assignmentTitle
+        );
+      } catch (notifyErr) {
+        console.warn("Assignment notification failed:", notifyErr);
+      }
+
+      setForm(emptyForm);
+      setFiles([]);
+      alert("Assignment created.");
+    } catch (err: any) {
+      console.error("Create assignment failed:", err);
+      alert(err?.message || "Failed to create assignment.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submitGrade() {
@@ -157,31 +177,56 @@ export default function InstructorAssignments({
       return;
     }
 
-    const newGrade = await createGrade({
-      studentId: gradeModal.studentId,
-      lectureId: null,
-      assignmentId: gradeModal.assignmentId,
-      type: "assignment",
-      score,
-      feedback: gradeForm.feedback,
-      gradedBy: user.id,
-    });
+    const assignment = allMyAssignments.find((a: any) => a.id === gradeModal.assignmentId);
+    if (!assignment) {
+      alert("You can only grade assignments from your own assigned groups.");
+      return;
+    }
 
-    setData((d: any) => ({
-      ...d,
-      grades: [...d.grades, newGrade],
-    }));
-
-    setGradeModal(null);
-    setGradeForm({ score: "", feedback: "" });
-    await notifyUsers(
-      [gradeModal.studentId],
-      "grade",
-      "Assignment Graded",
-      `Your assignment has been graded: ${score}%`
+    const isStudentInMyGroup = groupStudents.some(
+      (gs: any) => gs.groupId === assignment.groupId && gs.studentId === gradeModal.studentId
     );
 
-    alert("Assignment graded.");
+    if (!isStudentInMyGroup) {
+      alert("This student is not in your assigned group.");
+      return;
+    }
+
+    try {
+      setBusy(true);
+
+      await createGrade({
+        studentId: gradeModal.studentId,
+        lectureId: null,
+        assignmentId: gradeModal.assignmentId,
+        type: "assignment",
+        score,
+        feedback: gradeForm.feedback,
+        gradedBy: user.id,
+      });
+
+      await refreshFromSupabase();
+
+      try {
+        await notifyUsers(
+          [gradeModal.studentId],
+          "grade",
+          "Assignment Graded",
+          `Your assignment has been graded: ${score}%`
+        );
+      } catch (notifyErr) {
+        console.warn("Grade notification failed:", notifyErr);
+      }
+
+      setGradeModal(null);
+      setGradeForm({ score: "", feedback: "" });
+      alert("Assignment graded.");
+    } catch (err: any) {
+      console.error("Grade submission failed:", err);
+      alert(err?.message || "Failed to save grade.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -261,7 +306,7 @@ export default function InstructorAssignments({
               </div>
             )}
 
-            <Button onClick={saveAssignment}>Create Assignment</Button>
+            <Button onClick={saveAssignment} disabled={busy}>{busy ? "Saving..." : "Create Assignment"}</Button>
           </div>
         </Card>
 
@@ -272,7 +317,7 @@ export default function InstructorAssignments({
           <div style={statsGrid}>
             <Stat label="Assignments" value={String(myAssignments.length)} />
             <Stat label="Groups" value={String(myGroups.length)} />
-            <Stat label="Submissions" value={String(submissions.length)} />
+            <Stat label="Submissions" value={String(mySubmissions.length)} />
           </div>
         </Card>
       </div>
@@ -426,7 +471,7 @@ export default function InstructorAssignments({
             </div>
 
             <div style={{display:"flex",gap:10,marginTop:18}}>
-              <Button onClick={submitGrade}>Save Grade</Button>
+              <Button onClick={submitGrade} disabled={busy}>{busy ? "Saving..." : "Save Grade"}</Button>
               <Button variant="secondary" onClick={() => setGradeModal(null)}>Cancel</Button>
             </div>
           </div>
@@ -671,6 +716,7 @@ const modal: CSSProperties = {
   padding:24,
   boxShadow:"0 20px 60px rgba(0,0,0,.25)",
 };
+
 
 
 

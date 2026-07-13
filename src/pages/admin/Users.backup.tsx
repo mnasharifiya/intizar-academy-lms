@@ -1,4 +1,4 @@
-﻿import { useMemo, useRef, useState, type CSSProperties } from "react";
+﻿import { useMemo, useRef, useState } from "react";
 import { PageHeader, Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import {
@@ -7,12 +7,6 @@ import {
   addAdminGroup,
   removeAdminGroup,
   loadAllData,
-  addGroupStudentPending,
-  approveGroupStudent,
-  rejectGroupStudent,
-  assignInstructorToGroupPending,
-  approveGroupInstructor,
-  rejectGroupInstructor,
 } from "../../lib/api";
 
 const emptyForm = {
@@ -28,8 +22,6 @@ const emptyForm = {
   phone: "",
   office: "",
   adminGroupIds: [] as string[],
-  studentGroupId: "",
-  instructorGroupIds: [] as string[],
 };
 
 export default function UsersPage({
@@ -54,14 +46,10 @@ export default function UsersPage({
   const levels = data?.levels ?? [];
   const groups = data?.groups ?? [];
   const adminGroups = data?.adminGroups ?? [];
-  const groupStudents = data?.groupStudents ?? [];
 
   const currentAdminLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
-  const currentAdminIsMainController = user?.role === "admin" && currentAdminLinks.length === 0;
   const currentAdminIsRestricted = user?.role === "admin" && currentAdminLinks.length > 0;
-
-  const pendingStudents = groupStudents.filter((gs: any) => gs.status === "pending");
-  const pendingInstructors = groups.filter((g: any) => g.instructorId && g.instructorStatus === "pending");
+  const currentAdminIsMainController = user?.role === "admin" && currentAdminLinks.length === 0;
 
   const filtered = useMemo(() => {
     return users.filter((u: any) => {
@@ -87,25 +75,37 @@ export default function UsersPage({
     reader.readAsDataURL(file);
   }
 
-  function toggleArray(value: string, list: string[]) {
-    return list.includes(value) ? list.filter(x => x !== value) : [...list, value];
+  function toggleAdminGroup(groupId: string) {
+    setForm(f => {
+      const exists = f.adminGroupIds.includes(groupId);
+      return {
+        ...f,
+        adminGroupIds: exists
+          ? f.adminGroupIds.filter(id => id !== groupId)
+          : [...f.adminGroupIds, groupId],
+      };
+    });
+  }
+
+  function toggleAccessGroup(groupId: string) {
+    setAccessGroupIds(ids =>
+      ids.includes(groupId)
+        ? ids.filter(id => id !== groupId)
+        : [...ids, groupId]
+    );
   }
 
   function groupName(id: string) {
     return groups.find((g: any) => g.id === id)?.name || "-";
   }
 
-  function levelName(id: string) {
-    return levels.find((l: any) => l.id === id)?.name || "-";
-  }
-
-  function userName(id: string) {
-    return users.find((u: any) => u.id === id)?.name || "-";
-  }
-
   function adminAccessText(adminId: string) {
     const links = adminGroups.filter((ag: any) => ag.adminId === adminId);
-    if (links.length === 0) return "Main controller / all groups";
+
+    if (links.length === 0) {
+      return "Main controller / all groups";
+    }
+
     return links.map((ag: any) => groupName(ag.groupId)).join(", ");
   }
 
@@ -114,7 +114,6 @@ export default function UsersPage({
       alert("Only the Main Controller can manage admin group access.");
       return;
     }
-
     if (admin.id === user?.id) {
       alert("For safety, manage your own main-controller access from Supabase only.");
       return;
@@ -130,6 +129,11 @@ export default function UsersPage({
 
   async function saveAccess() {
     if (!accessUser) return;
+
+    if (currentAdminIsRestricted && accessGroupIds.length === 0) {
+      alert("Restricted admins must assign at least one group.");
+      return;
+    }
 
     try {
       setBusy(true);
@@ -163,18 +167,23 @@ export default function UsersPage({
   }
 
   async function addUser() {
-    if (!currentAdminIsMainController) {
-      alert("Only the Main Controller can create users.");
-      return;
-    }
-
     if (!form.name || !form.email || !form.password) {
       alert("Name, email and password are required.");
       return;
     }
 
+    if (form.role === "admin" && !currentAdminIsMainController) {
+      alert("Only the Main Controller can create admin accounts.");
+      return;
+    }
+
     if (form.role === "student" && !form.levelId) {
       alert("Please select a program for this student.");
+      return;
+    }
+
+    if (form.role === "admin" && currentAdminIsRestricted && form.adminGroupIds.length === 0) {
+      alert("Restricted admin must assign at least one group to a new admin.");
       return;
     }
 
@@ -206,34 +215,16 @@ export default function UsersPage({
         }
       }
 
-      if (form.role === "student" && form.studentGroupId) {
-        const groupHasRestrictedAdmin = adminGroups.some((ag: any) => ag.groupId === form.studentGroupId);
-        await addGroupStudentPending(
-          form.studentGroupId,
-          finalUser.id,
-          user.id,
-          groupHasRestrictedAdmin ? "pending" : "approved"
-        );
-      }
-
-      if (form.role === "instructor" && form.instructorGroupIds.length > 0) {
-        for (const groupId of form.instructorGroupIds) {
-          const groupHasRestrictedAdmin = adminGroups.some((ag: any) => ag.groupId === groupId);
-          await assignInstructorToGroupPending(
-            groupId,
-            finalUser.id,
-            user.id,
-            groupHasRestrictedAdmin ? "pending" : "approved"
-          );
-        }
-      }
-
       await refreshFromSupabase();
 
       setShowAdd(false);
       setForm(emptyForm);
 
-      alert("User created successfully.");
+      if (form.role === "admin" && form.adminGroupIds.length === 0) {
+        alert("Admin created as Main Controller / all groups.");
+      } else {
+        alert("User created successfully.");
+      }
     } catch (err: any) {
       console.error("Create user failed:", err);
       alert(err?.message || "Failed to create user.");
@@ -257,113 +248,13 @@ export default function UsersPage({
     }
   }
 
-  async function approveStudent(gs: any) {
-    try {
-      setBusy(true);
-      await approveGroupStudent(gs.groupId, gs.studentId, user.id);
-      await refreshFromSupabase();
-      alert("Student approved.");
-    } catch (err: any) {
-      alert(err?.message || "Failed to approve student.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function rejectStudent(gs: any) {
-    try {
-      setBusy(true);
-      await rejectGroupStudent(gs.groupId, gs.studentId, user.id);
-      await refreshFromSupabase();
-      alert("Student rejected.");
-    } catch (err: any) {
-      alert(err?.message || "Failed to reject student.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function approveInstructor(group: any) {
-    try {
-      setBusy(true);
-      await approveGroupInstructor(group.id, user.id);
-      await refreshFromSupabase();
-      alert("Instructor approved.");
-    } catch (err: any) {
-      alert(err?.message || "Failed to approve instructor.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function rejectInstructor(group: any) {
-    try {
-      setBusy(true);
-      await rejectGroupInstructor(group.id, user.id);
-      await refreshFromSupabase();
-      alert("Instructor rejected.");
-    } catch (err: any) {
-      alert(err?.message || "Failed to reject instructor.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div>
       <PageHeader
         title="User Management"
-        sub={currentAdminIsRestricted ? "Restricted admin: assigned groups only" : users.length + " users in the system"}
-        action={
-          currentAdminIsMainController
-            ? <Button onClick={() => setShowAdd(true)} disabled={busy}>+ Add User</Button>
-            : undefined
-        }
+        sub={users.length + " users in the system"}
+        action={<Button onClick={() => setShowAdd(true)} disabled={busy}>+ Add User</Button>}
       />
-
-      {currentAdminIsRestricted && (
-        <Card>
-          <h2 style={sectionTitle}>Pending Approvals</h2>
-          <p style={sectionSub}>
-            Approve or reject students and instructors assigned to your groups.
-          </p>
-
-          {pendingStudents.length === 0 && pendingInstructors.length === 0 && (
-            <div style={emptyState}>
-              <strong>No pending approvals</strong>
-              <p>New students or instructors assigned to your groups will appear here.</p>
-            </div>
-          )}
-
-          <div style={{display:"grid",gap:12,marginTop:16}}>
-            {pendingStudents.map((gs: any) => (
-              <div key={gs.groupId + gs.studentId} style={approvalCard}>
-                <div>
-                  <strong>{userName(gs.studentId)}</strong>
-                  <div style={meta}>Student pending for {groupName(gs.groupId)}</div>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button style={approveBtn} disabled={busy} onClick={() => approveStudent(gs)}>Approve</button>
-                  <button style={rejectBtn} disabled={busy} onClick={() => rejectStudent(gs)}>Reject</button>
-                </div>
-              </div>
-            ))}
-
-            {pendingInstructors.map((g: any) => (
-              <div key={g.id} style={approvalCard}>
-                <div>
-                  <strong>{userName(g.instructorId)}</strong>
-                  <div style={meta}>Instructor pending for {g.name}</div>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button style={approveBtn} disabled={busy} onClick={() => approveInstructor(g)}>Approve</button>
-                  <button style={rejectBtn} disabled={busy} onClick={() => rejectInstructor(g)}>Reject</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       <Card>
         <div style={{display:"grid",gridTemplateColumns:"1fr 180px",gap:12,marginBottom:18}}>
@@ -410,7 +301,7 @@ export default function UsersPage({
                     <td style={td}>
                       {u.role === "admin" ? (
                         <div>
-                          <div style={{fontSize:12,color:C.muted,maxWidth:260,lineHeight:1.5}}>
+                          <div style={{fontSize:12,color:C.muted,maxWidth:240,lineHeight:1.5}}>
                             {adminAccessText(u.id)}
                           </div>
                           {currentAdminIsMainController && u.id !== user?.id && (
@@ -427,7 +318,7 @@ export default function UsersPage({
                       </span>
                     </td>
                     <td style={td}>
-                      <button disabled={busy || !currentAdminIsMainController} onClick={() => toggleActive(u)}>
+                      <button disabled={busy} onClick={() => toggleActive(u)}>
                         {u.isActive ? "Deactivate" : "Activate"}
                       </button>
                     </td>
@@ -439,7 +330,7 @@ export default function UsersPage({
         </div>
       </Card>
 
-      {showAdd && currentAdminIsMainController && (
+      {showAdd && (
         <div style={overlay}>
           <div style={modal}>
             <h2 style={{marginTop:0}}>Add User</h2>
@@ -464,29 +355,20 @@ export default function UsersPage({
                   role:e.target.value,
                   levelId:"",
                   adminGroupIds:[],
-                  studentGroupId:"",
-                  instructorGroupIds:[],
                 }))}
                 style={selectStyle}
                 disabled={busy}
               >
                 <option value="student">Student</option>
                 <option value="instructor">Instructor</option>
-                <option value="admin">Admin</option>
+                {currentAdminIsMainController && <option value="admin">Admin</option>}
               </select>
 
               {form.role === "student" && (
-                <>
-                  <select value={form.levelId} onChange={e => setForm(f => ({...f,levelId:e.target.value}))} style={selectStyle} disabled={busy}>
-                    <option value="">Select program</option>
-                    {levels.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                  </select>
-
-                  <select value={form.studentGroupId} onChange={e => setForm(f => ({...f,studentGroupId:e.target.value}))} style={selectStyle} disabled={busy}>
-                    <option value="">Assign to group now optional</option>
-                    {groups.map((g: any) => <option key={g.id} value={g.id}>{g.name} - {levelName(g.levelId)}</option>)}
-                  </select>
-                </>
+                <select value={form.levelId} onChange={e => setForm(f => ({...f,levelId:e.target.value}))} style={selectStyle} disabled={busy}>
+                  <option value="">Select program</option>
+                  {levels.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
               )}
 
               {(form.role === "instructor" || form.role === "admin") && (
@@ -499,46 +381,27 @@ export default function UsersPage({
                 </>
               )}
 
-              {form.role === "instructor" && (
-                <div style={accessBox}>
-                  <strong style={{color:C.text}}>Instructor Group Assignment</strong>
-                  <p style={helpText}>
-                    Select groups for this instructor. If a selected group belongs to a restricted admin, approval will be required.
-                  </p>
-
-                  <div style={checkGrid}>
-                    {groups.map((g: any) => (
-                      <label key={g.id} style={checkRow}>
-                        <input
-                          type="checkbox"
-                          checked={form.instructorGroupIds.includes(g.id)}
-                          onChange={() => setForm(f => ({...f,instructorGroupIds:toggleArray(g.id,f.instructorGroupIds)}))}
-                          disabled={busy}
-                        />
-                        <span>{g.name} - {levelName(g.levelId)}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {form.role === "admin" && (
                 <div style={accessBox}>
                   <strong style={{color:C.text}}>Admin Group Access</strong>
-                  <p style={helpText}>
-                    Select the groups this admin can manage. If no group is selected, this admin becomes Main Controller / all groups.
+                  <p style={{margin:"6px 0 10px",fontSize:13,color:C.muted,lineHeight:1.6}}>
+                    Select the groups this admin can manage. If no group is selected, this admin becomes a main controller with access to all groups.
                   </p>
 
-                  <div style={checkGrid}>
+                  {groups.length === 0 && (
+                    <p style={{color:C.muted}}>No groups available yet.</p>
+                  )}
+
+                  <div style={{display:"grid",gap:8,maxHeight:180,overflowY:"auto"}}>
                     {groups.map((g: any) => (
                       <label key={g.id} style={checkRow}>
                         <input
                           type="checkbox"
                           checked={form.adminGroupIds.includes(g.id)}
-                          onChange={() => setForm(f => ({...f,adminGroupIds:toggleArray(g.id,f.adminGroupIds)}))}
+                          onChange={() => toggleAdminGroup(g.id)}
                           disabled={busy}
                         />
-                        <span>{g.name} - {levelName(g.levelId)}</span>
+                        <span>{g.name}</span>
                       </label>
                     ))}
                   </div>
@@ -570,20 +433,20 @@ export default function UsersPage({
 
             <div style={accessBox}>
               <strong style={{color:C.text}}>Assigned Groups</strong>
-              <p style={helpText}>
-                This admin can perform all admin work only inside selected groups.
+              <p style={{margin:"6px 0 10px",fontSize:13,color:C.muted,lineHeight:1.6}}>
+                This admin can perform all admin work only inside selected groups. If no group is selected, the admin has access to all groups.
               </p>
 
-              <div style={checkGrid}>
+              <div style={{display:"grid",gap:8,maxHeight:260,overflowY:"auto"}}>
                 {groups.map((g: any) => (
                   <label key={g.id} style={checkRow}>
                     <input
                       type="checkbox"
                       checked={accessGroupIds.includes(g.id)}
-                      onChange={() => setAccessGroupIds(ids => toggleArray(g.id, ids))}
+                      onChange={() => toggleAccessGroup(g.id)}
                       disabled={busy}
                     />
-                    <span>{g.name} - {levelName(g.levelId)}</span>
+                    <span>{g.name}</span>
                   </label>
                 ))}
               </div>
@@ -615,59 +478,21 @@ function Avatar({ name, photo, size = 42 }: { name: string; photo?: string; size
   );
 }
 
-const selectStyle: CSSProperties = {padding:"12px 14px",border:"1px solid "+C.border,borderRadius:10};
-const textareaStyle: CSSProperties = {width:"100%",padding:"12px 14px",border:"1px solid "+C.border,borderRadius:10,minHeight:90};
-const th: CSSProperties = {padding:"12px",fontSize:13,color:C.muted};
-const td: CSSProperties = {padding:"13px 12px",fontSize:14,verticalAlign:"top"};
-const overlay: CSSProperties = {position:"fixed",inset:0,background:"rgba(0,0,0,.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50};
-const modal: CSSProperties = {width:660,maxHeight:"90vh",overflowY:"auto",background:"#fff",borderRadius:18,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,.25)"};
+const selectStyle: React.CSSProperties = {padding:"12px 14px",border:"1px solid "+C.border,borderRadius:10};
+const textareaStyle: React.CSSProperties = {width:"100%",padding:"12px 14px",border:"1px solid "+C.border,borderRadius:10,minHeight:90};
+const th: React.CSSProperties = {padding:"12px",fontSize:13,color:C.muted};
+const td: React.CSSProperties = {padding:"13px 12px",fontSize:14,verticalAlign:"top"};
+const overlay: React.CSSProperties = {position:"fixed",inset:0,background:"rgba(0,0,0,.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50};
+const modal: React.CSSProperties = {width:620,maxHeight:"90vh",overflowY:"auto",background:"#fff",borderRadius:18,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,.25)"};
 
-const sectionTitle: CSSProperties = {margin:0,fontSize:20,color:C.text,fontWeight:900};
-const sectionSub: CSSProperties = {margin:"5px 0 0",color:C.muted,fontSize:13};
-const meta: CSSProperties = {fontSize:13,color:C.muted,marginTop:4};
-const helpText: CSSProperties = {margin:"6px 0 10px",fontSize:13,color:C.muted,lineHeight:1.6};
-
-const emptyState: CSSProperties = {
-  minHeight:120,
-  display:"flex",
-  flexDirection:"column",
-  alignItems:"center",
-  justifyContent:"center",
-  textAlign:"center",
-  color:C.muted,
-  background:"#f8fafc",
-  border:"1px dashed #cbd5e1",
-  borderRadius:16,
-  padding:20,
-  marginTop:16,
-};
-
-const approvalCard: CSSProperties = {
-  display:"flex",
-  justifyContent:"space-between",
-  alignItems:"center",
-  gap:14,
-  border:"1px solid "+C.border,
-  borderRadius:14,
-  padding:14,
-  background:"#fff",
-};
-
-const accessBox: CSSProperties = {
+const accessBox: React.CSSProperties = {
   border:"1px solid "+C.border,
   borderRadius:14,
   padding:14,
   background:"#f8fafc",
 };
 
-const checkGrid: CSSProperties = {
-  display:"grid",
-  gap:8,
-  maxHeight:190,
-  overflowY:"auto",
-};
-
-const checkRow: CSSProperties = {
+const checkRow: React.CSSProperties = {
   display:"flex",
   alignItems:"center",
   gap:10,
@@ -678,7 +503,7 @@ const checkRow: CSSProperties = {
   fontSize:14,
 };
 
-const warningBox: CSSProperties = {
+const warningBox: React.CSSProperties = {
   marginTop:10,
   borderRadius:10,
   padding:10,
@@ -688,7 +513,7 @@ const warningBox: CSSProperties = {
   fontWeight:700,
 };
 
-const smallButton: CSSProperties = {
+const smallButton: React.CSSProperties = {
   marginTop:6,
   border:"1px solid "+C.border,
   background:"#fff",
@@ -700,22 +525,3 @@ const smallButton: CSSProperties = {
   cursor:"pointer",
 };
 
-const approveBtn: CSSProperties = {
-  border:"none",
-  background:"#dcfce7",
-  color:"#166534",
-  borderRadius:9,
-  padding:"8px 11px",
-  fontWeight:900,
-  cursor:"pointer",
-};
-
-const rejectBtn: CSSProperties = {
-  border:"none",
-  background:"#fee2e2",
-  color:"#991b1b",
-  borderRadius:9,
-  padding:"8px 11px",
-  fontWeight:900,
-  cursor:"pointer",
-};

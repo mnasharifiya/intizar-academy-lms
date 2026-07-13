@@ -6,7 +6,9 @@ import {
   deleteLearningMaterial,
   getLearningMaterialUrl,
   uploadLearningMaterialFile,
+  loadAllData,
 } from "../../lib/api";
+import { notifyUsers } from "../../lib/notify";
 
 const emptyForm = {
   groupId: "",
@@ -28,19 +30,38 @@ export function InstructorMaterialsManager({
   const [mode, setMode] = useState<"file" | "link">("file");
   const [form, setForm] = useState(emptyForm);
   const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const groups = data?.groups ?? [];
   const courses = data?.courses ?? [];
   const levelCourses = data?.levelCourses ?? [];
   const materials = data?.learningMaterials ?? [];
+  const groupStudents = data?.groupStudents ?? [];
 
-  const myGroups = groups.filter((g: any) => g.instructorId === user.id);
+  const myGroups = groups.filter(
+    (g: any) => g.instructorId === user.id && g.isActive !== false
+  );
 
   const myMaterials = useMemo(() => {
     return materials
       .filter((m: any) => myGroups.some((g: any) => g.id === m.groupId))
-      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
   }, [materials, myGroups]);
+
+  async function refreshFromSupabase() {
+    const fresh = await loadAllData();
+    setData(fresh);
+  }
+
+  function studentIdsInGroup(groupId: string) {
+    return groupStudents
+      .filter((gs: any) => gs.groupId === groupId)
+      .map((gs: any) => gs.studentId)
+      .filter(Boolean);
+  }
 
   function coursesForGroup(groupId: string) {
     const group = myGroups.find((g: any) => g.id === groupId);
@@ -67,65 +88,93 @@ export function InstructorMaterialsManager({
       return;
     }
 
-    if (mode === "file") {
-      if (!file) {
-        alert("Please select a file.");
-        return;
-      }
-
-      const material = await uploadLearningMaterialFile({
-        groupId: form.groupId,
-        courseId: form.courseId,
-        instructorId: user.id,
-        title: form.title,
-        description: form.description,
-        file,
-      });
-
-      setData((d: any) => ({
-        ...d,
-        learningMaterials: [...d.learningMaterials, material],
-      }));
-    } else {
-      if (!form.externalUrl) {
-        alert("Please provide the material link.");
-        return;
-      }
-
-      const material = await createLearningMaterialLink({
-        groupId: form.groupId,
-        courseId: form.courseId,
-        instructorId: user.id,
-        title: form.title,
-        description: form.description,
-        externalUrl: form.externalUrl,
-      });
-
-      setData((d: any) => ({
-        ...d,
-        learningMaterials: [...d.learningMaterials, material],
-      }));
+    const selectedGroup = myGroups.find((g: any) => g.id === form.groupId);
+    if (!selectedGroup) {
+      alert("You can only share materials to your active assigned groups.");
+      return;
     }
 
-    setForm(emptyForm);
-    setFile(null);
-    alert("Learning material saved.");
+    if (mode === "file" && !file) {
+      alert("Please select a file.");
+      return;
+    }
+
+    if (mode === "link" && !form.externalUrl) {
+      alert("Please provide the material link.");
+      return;
+    }
+
+    const notifyStudentIds = studentIdsInGroup(form.groupId);
+    const materialTitle = form.title;
+
+    try {
+      setBusy(true);
+
+      if (mode === "file") {
+        await uploadLearningMaterialFile({
+          groupId: form.groupId,
+          courseId: form.courseId,
+          instructorId: user.id,
+          title: form.title,
+          description: form.description,
+          file: file as File,
+        });
+      } else {
+        await createLearningMaterialLink({
+          groupId: form.groupId,
+          courseId: form.courseId,
+          instructorId: user.id,
+          title: form.title,
+          description: form.description,
+          externalUrl: form.externalUrl,
+        });
+      }
+
+      await refreshFromSupabase();
+
+      try {
+        await notifyUsers(
+          notifyStudentIds,
+          "system",
+          "New Learning Material",
+          `${materialTitle} has been shared by your instructor.`
+        );
+      } catch (notifyErr) {
+        console.warn("Material notification failed:", notifyErr);
+      }
+
+      setForm(emptyForm);
+      setFile(null);
+      alert("Learning material saved.");
+    } catch (err: any) {
+      console.error("Learning material save failed:", err);
+      alert(err?.message || "Failed to save learning material.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openMaterial(material: any) {
-    const url = await getLearningMaterialUrl(material);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    try {
+      const url = await getLearningMaterialUrl(material);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err: any) {
+      alert(err?.message || "Could not open material.");
+    }
   }
 
   async function removeMaterial(material: any) {
     if (!confirm("Delete this material?")) return;
 
-    await deleteLearningMaterial(material);
-
-    setData((d: any) => ({
-      ...d,
-      learningMaterials: d.learningMaterials.filter((m: any) => m.id !== material.id),
-    }));
+    try {
+      setBusy(true);
+      await deleteLearningMaterial(material);
+      await refreshFromSupabase();
+    } catch (err: any) {
+      alert(err?.message || "Failed to delete material.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -134,8 +183,12 @@ export function InstructorMaterialsManager({
       <p style={sectionSub}>Upload PDF, PPTX, DOCX, images, video/audio files, or add external links.</p>
 
       <div style={modeTabs}>
-        <button style={tab(mode === "file")} onClick={() => setMode("file")}>Upload File</button>
-        <button style={tab(mode === "link")} onClick={() => setMode("link")}>Add Link</button>
+        <button style={tab(mode === "file")} onClick={() => setMode("file")} disabled={busy}>
+          Upload File
+        </button>
+        <button style={tab(mode === "link")} onClick={() => setMode("link")} disabled={busy}>
+          Add Link
+        </button>
       </div>
 
       <div style={formGrid}>
@@ -143,6 +196,7 @@ export function InstructorMaterialsManager({
           value={form.groupId}
           onChange={e => setForm(f => ({...f, groupId:e.target.value, courseId:""}))}
           style={selectStyle}
+          disabled={busy}
         >
           <option value="">Select group</option>
           {myGroups.map((g: any) => (
@@ -154,7 +208,7 @@ export function InstructorMaterialsManager({
           value={form.courseId}
           onChange={e => setForm(f => ({...f, courseId:e.target.value}))}
           style={selectStyle}
-          disabled={!form.groupId}
+          disabled={!form.groupId || busy}
         >
           <option value="">Select course</option>
           {coursesForGroup(form.groupId).map((c: any) => (
@@ -173,6 +227,7 @@ export function InstructorMaterialsManager({
           onChange={e => setForm(f => ({...f,description:e.target.value}))}
           placeholder="Material description"
           style={textareaStyle}
+          disabled={busy}
         />
 
         {mode === "file" && (
@@ -181,6 +236,7 @@ export function InstructorMaterialsManager({
             accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg,.webp,.mp4,.mp3,.txt"
             onChange={e => setFile(e.target.files?.[0] ?? null)}
             style={fileInputStyle}
+            disabled={busy}
           />
         )}
 
@@ -192,7 +248,9 @@ export function InstructorMaterialsManager({
           />
         )}
 
-        <Button onClick={saveMaterial}>Save Material</Button>
+        <Button onClick={saveMaterial} disabled={busy}>
+          {busy ? "Saving..." : "Save Material"}
+        </Button>
       </div>
 
       <div style={{marginTop:24}}>
@@ -221,8 +279,8 @@ export function InstructorMaterialsManager({
               </div>
 
               <div style={{display:"flex",gap:8}}>
-                <button style={miniButton} onClick={() => openMaterial(material)}>Open</button>
-                <button style={dangerButton} onClick={() => removeMaterial(material)}>Delete</button>
+                <button style={miniButton} onClick={() => openMaterial(material)} disabled={busy}>Open</button>
+                <button style={dangerButton} onClick={() => removeMaterial(material)} disabled={busy}>Delete</button>
               </div>
             </div>
           ))}
@@ -258,8 +316,12 @@ export function StudentMaterialsList({
   }
 
   async function openMaterial(material: any) {
-    const url = await getLearningMaterialUrl(material);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    try {
+      const url = await getLearningMaterialUrl(material);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err: any) {
+      alert(err?.message || "Could not open material.");
+    }
   }
 
   return (
