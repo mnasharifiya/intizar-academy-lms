@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import * as QRCode from "qrcode";
 import { PageHeader, Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import {
@@ -367,7 +368,18 @@ export default function AdminCertificates({
   );
 }
 
-function printCertificate(cert: CertificateRecord) {
+function certificateVerifyUrl(cert: CertificateRecord) {
+  const base = window.location.origin + window.location.pathname;
+  const params = new URLSearchParams({
+    verifyCertificate: "1",
+    certificateNo: cert.certificateNo,
+    token: cert.verificationToken,
+  });
+
+  return `${base}?${params.toString()}`;
+}
+
+async function printCertificate(cert: CertificateRecord) {
   const win = window.open("", "_blank");
 
   if (!win) {
@@ -375,8 +387,22 @@ function printCertificate(cert: CertificateRecord) {
     return;
   }
 
-  const issuedDate = new Date(cert.issuedAt).toLocaleDateString();
+  win.document.write(`
+    <html>
+      <body style="font-family:Arial;padding:30px">
+        Preparing certificate QR code...
+      </body>
+    </html>
+  `);
 
+  const issuedDate = new Date(cert.issuedAt).toLocaleDateString();
+  const verifyUrl = certificateVerifyUrl(cert);
+  const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+    width: 150,
+    margin: 1,
+  });
+
+  win.document.open();
   win.document.write(`
     <html>
       <head>
@@ -545,12 +571,52 @@ function printCertificate(cert: CertificateRecord) {
             word-break: break-word;
           }
 
+          .qr-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 20px;
+            font-family: Arial, sans-serif;
+          }
+
+          .qr-section img {
+            width: 92px;
+            height: 92px;
+            border: 1px solid #bbf7d0;
+            padding: 6px;
+            border-radius: 10px;
+            background: #fff;
+          }
+
+          .qr-text {
+            text-align: left;
+            max-width: 360px;
+            font-size: 12px;
+            color: #475569;
+            line-height: 1.5;
+          }
+
+          .qr-text strong {
+            color: #052e16;
+            display: block;
+            font-size: 13px;
+            margin-bottom: 4px;
+          }
+
+          .verify-url {
+            word-break: break-all;
+            font-size: 10px;
+            color: #64748b;
+            margin-top: 4px;
+          }
+
           .signature-row {
             display: grid;
             grid-template-columns: 1fr 120px 1fr;
             gap: 28px;
             align-items: end;
-            margin-top: 34px;
+            margin-top: 24px;
           }
 
           .signature {
@@ -673,6 +739,15 @@ function printCertificate(cert: CertificateRecord) {
                 <div class="meta-card">
                   <div class="meta-label">Verification Token</div>
                   <div class="meta-value">${escapeHtml(cert.verificationToken)}</div>
+                </div>
+              </div>
+
+              <div class="qr-section">
+                <img src="${qrDataUrl}" />
+                <div class="qr-text">
+                  <strong>Scan to verify this certificate</strong>
+                  This QR code opens the official INTIZAR certificate verification page.
+                  <div class="verify-url">${escapeHtml(verifyUrl)}</div>
                 </div>
               </div>
 
@@ -830,4 +905,5 @@ const emptyState: CSSProperties = {
   textAlign:"center",
   color:C.muted,
 };
+
 

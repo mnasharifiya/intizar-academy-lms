@@ -186,7 +186,10 @@ return {
 function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [page, setPage] = useState("dashboard");
-  const [publicPage, setPublicPage] = useState<"login" | "apply" | "verify">("login");
+  const [publicPage, setPublicPage] = useState<"login" | "apply" | "verify">(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("verifyCertificate") === "1" ? "verify" : "login";
+  });
   const [data, setData] = useState<any>({
     users: [],
     levels: [],
@@ -289,6 +292,7 @@ function App() {
 }
 
 export default App;
+
 
 
 

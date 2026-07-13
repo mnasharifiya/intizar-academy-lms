@@ -1,4 +1,4 @@
-﻿import { useState, type CSSProperties } from "react";
+﻿import { useEffect, useState, type CSSProperties } from "react";
 import { Button, Card, Input } from "../../components/common/ui";
 import { APP_NAME, C } from "../../lib/theme";
 import { verifyCertificate, type CertificateRecord } from "../../lib/certificateApi";
@@ -13,6 +13,35 @@ export default function CertificateVerify({
   const [result, setResult] = useState<CertificateRecord | null>(null);
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Auto verify certificate from QR code link
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const no = params.get("certificateNo") || "";
+    const token = params.get("token") || params.get("verificationToken") || "";
+
+    if (!no || !token) return;
+
+    setCertificateNo(no.toUpperCase());
+    setVerificationToken(token.toUpperCase());
+    setBusy(true);
+    setChecked(false);
+    setResult(null);
+
+    verifyCertificate({
+      certificateNo: no,
+      verificationToken: token,
+    })
+      .then(cert => {
+        setResult(cert);
+        setChecked(true);
+      })
+      .catch(err => {
+        console.error(err);
+        alert(err?.message || "Could not verify certificate.");
+      })
+      .finally(() => setBusy(false));
+  }, []);
 
   async function verify(e: React.FormEvent) {
     e.preventDefault();
@@ -254,3 +283,4 @@ const infoCard: CSSProperties = {
   padding:14,
   background:"#f8fafc",
 };
+
