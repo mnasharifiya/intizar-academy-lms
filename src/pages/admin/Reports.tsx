@@ -225,7 +225,7 @@ export default function AdminReports({
     zone: app.zone,
     branch: app.branch,
     workInBranch: app.workInBranch,
-    program: levelName(app.programId),
+    program: levelName(app.finalProgramId || app.programId),
     amount: formatMoney(app.applicationFee),
     paymentReference: app.paymentReference,
     paymentStatus: app.paymentStatus,
@@ -257,7 +257,7 @@ export default function AdminReports({
       email: app.email,
       phone: app.phoneNo,
       branch: app.branch,
-      program: levelName(app.programId),
+      program: levelName(app.finalProgramId || app.programId),
       regNo: app.finalRegNo || app.suggestedRegNo || "-",
       amountPaid: formatMoney(app.applicationFee),
       paymentCategory: "Application / Enrollment Fee",
@@ -707,4 +707,5 @@ const outlineButton: CSSProperties = {
   fontWeight:900,
   cursor:"pointer",
 };
+
 

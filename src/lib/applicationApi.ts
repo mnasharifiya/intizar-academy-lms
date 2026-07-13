@@ -17,6 +17,7 @@ export type ApplicationRecord = {
   branch: string;
   workInBranch: string;
   programId: string;
+  finalProgramId: string | null;
   applicationFee: number;
   paymentStatus: string;
   paymentProof: string | null;
@@ -58,6 +59,7 @@ function mapApplication(row: any): ApplicationRecord {
     branch: row.branch,
     workInBranch: row.work_in_branch,
     programId: row.program_id,
+    finalProgramId: row.final_program_id ?? row.program_id ?? null,
     applicationFee: Number(row.application_fee || 1500),
     paymentStatus: row.payment_status,
     paymentProof: row.payment_proof ?? null,
@@ -171,6 +173,7 @@ export async function submitApplication(input: {
       branch: input.branch,
       work_in_branch: input.workInBranch,
       program_id: input.programId,
+      final_program_id: input.programId,
       application_fee: fee,
       payment_status: "pending",
       application_status: "payment_pending",
@@ -320,7 +323,8 @@ export async function rejectApplicationPayment(
 export async function approveApplication(
   applicationId: string,
   adminId: string,
-  finalRegNo: string
+  finalRegNo: string,
+  finalProgramId: string
 ): Promise<void> {
   const now = new Date().toISOString();
 
@@ -331,12 +335,14 @@ export async function approveApplication(
       main_admin_approved_by: adminId,
       main_admin_approved_at: now,
       final_reg_no: finalRegNo,
+      final_program_id: finalProgramId,
       updated_at: now,
     })
     .eq("id", applicationId);
 
   if (error) throw error;
 }
+
 
 
 

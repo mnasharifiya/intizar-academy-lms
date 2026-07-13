@@ -24,6 +24,7 @@ export default function AdminApplications({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [regNos, setRegNos] = useState<Record<string, string>>({});
+  const [finalPrograms, setFinalPrograms] = useState<Record<string, string>>({});
 
   const levels = data?.levels ?? [];
   const adminGroups = data?.adminGroups ?? [];
@@ -36,11 +37,17 @@ export default function AdminApplications({
     setApplications(res.applications);
     setPayments(res.payments);
 
-    const next: Record<string, string> = {};
+    const nextRegs: Record<string, string> = {};
+    const nextPrograms: Record<string, string> = {};
+
     for (const app of res.applications) {
-      next[app.id] = app.finalRegNo || app.suggestedRegNo || makeSuggested(app, res.applications);
+      const finalProgramId = app.finalProgramId || app.programId;
+      nextPrograms[app.id] = finalProgramId;
+      nextRegs[app.id] = app.finalRegNo || app.suggestedRegNo || makeSuggested(app, res.applications, finalProgramId);
     }
-    setRegNos(next);
+
+    setRegNos(nextRegs);
+    setFinalPrograms(nextPrograms);
   }
 
   useEffect(() => {
@@ -66,14 +73,49 @@ export default function AdminApplications({
     return payments.find(p => p.applicationId === applicationId) || null;
   }
 
-  function makeSuggested(app: ApplicationRecord, allApps: ApplicationRecord[]) {
-    const program = programName(app.programId);
-    const same = allApps.filter(a => a.branch === app.branch && a.programId === app.programId);
+  function makeSuggested(app: ApplicationRecord, allApps: ApplicationRecord[], programId?: string) {
+    const finalProgramId = programId || app.finalProgramId || app.programId;
+    const program = programName(finalProgramId);
+
+    const same = allApps.filter(a =>
+      a.branch === app.branch &&
+      (a.finalProgramId || a.programId) === finalProgramId
+    );
+
     const serial = Math.max(1, same.findIndex(a => a.id === app.id) + 1);
     return suggestRegNo(app.branch, program, serial);
   }
 
+  function changeFinalProgram(app: ApplicationRecord, programId: string) {
+    setFinalPrograms(prev => ({ ...prev, [app.id]: programId }));
+
+    const newRegNo = makeSuggested(app, applications, programId);
+    setRegNos(prev => ({ ...prev, [app.id]: newRegNo }));
+  }
+
+  function downloadReceipt(app: ApplicationRecord, payment: ApplicationPayment) {
+    if (!payment.paymentProof) {
+      alert("No receipt/proof uploaded for this payment.");
+      return;
+    }
+
+    const ext = payment.paymentProof.startsWith("data:application/pdf") ? "pdf" : "jpg";
+    const safeAppNo = app.applicationNo.replace(/[^a-zA-Z0-9-_]/g, "-");
+    const safeName = app.fullName.replace(/[^a-zA-Z0-9-_]/g, "-");
+    const filename = `receipt-${safeAppNo}-${safeName}.${ext}`;
+
+    const a = document.createElement("a");
+    a.href = payment.paymentProof;
+    a.download = filename;
+    a.click();
+  }
+
   async function verify(app: ApplicationRecord) {
+    if (app.applicationStatus === "approved") {
+      alert("Approved applications cannot be changed.");
+      return;
+    }
+
     const payment = latestPayment(app.id);
 
     try {
@@ -112,9 +154,20 @@ export default function AdminApplications({
 
   async function approve(app: ApplicationRecord) {
     const regNo = regNos[app.id];
+    const finalProgramId = finalPrograms[app.id] || app.finalProgramId || app.programId;
+
+    if (app.applicationStatus === "approved") {
+      alert("This application is already approved.");
+      return;
+    }
 
     if (app.paymentStatus !== "paid") {
       alert("Payment must be verified before approval.");
+      return;
+    }
+
+    if (!finalProgramId) {
+      alert("Final program/track is required.");
       return;
     }
 
@@ -125,9 +178,9 @@ export default function AdminApplications({
 
     try {
       setBusy(true);
-      await approveApplication(app.id, user.id, regNo);
+      await approveApplication(app.id, user.id, regNo, finalProgramId);
       await refresh();
-      alert("Application approved. Now create the student account from Users page and use this Reg No.");
+      alert("Application approved. Final program and Reg No saved.");
     } catch (err: any) {
       alert(err?.message || "Application approval failed.");
     } finally {
@@ -135,22 +188,6 @@ export default function AdminApplications({
     }
   }
 
-  function downloadReceipt(app: ApplicationRecord, payment: ApplicationPayment) {
-    if (!payment.paymentProof) {
-      alert("No receipt/proof uploaded for this payment.");
-      return;
-    }
-
-    const ext = payment.paymentProof.startsWith("data:application/pdf") ? "pdf" : "jpg";
-    const safeAppNo = app.applicationNo.replace(/[^a-zA-Z0-9-_]/g, "-");
-    const safeName = app.fullName.replace(/[^a-zA-Z0-9-_]/g, "-");
-    const filename = `receipt-${safeAppNo}-${safeName}.${ext}`;
-
-    const a = document.createElement("a");
-    a.href = payment.paymentProof;
-    a.download = filename;
-    a.click();
-  }
   if (!isMainController) {
     return (
       <Card>
@@ -166,7 +203,7 @@ export default function AdminApplications({
     <div>
       <PageHeader
         title="Applications"
-        sub="Verify payment, approve applications, and prepare Reg No for enrollment."
+        sub="Verify payment, correct final program/track, approve applications, and prepare Reg No."
       />
 
       <Card>
@@ -187,6 +224,12 @@ export default function AdminApplications({
       <div style={{display:"grid",gap:16,marginTop:18}}>
         {visible.map(app => {
           const payment = latestPayment(app.id);
+          const isApproved = app.applicationStatus === "approved";
+          const finalProgramId = finalPrograms[app.id] || app.finalProgramId || app.programId;
+          const originalProgram = programName(app.programId);
+          const finalProgram = programName(finalProgramId);
+          const programChanged = app.programId !== finalProgramId;
+
           return (
             <Card key={app.id}>
               <div style={appTop}>
@@ -209,9 +252,16 @@ export default function AdminApplications({
               <div style={grid}>
                 <Info label="Application No" value={app.applicationNo} />
                 <Info label="Payment Reference" value={app.paymentReference} />
-                <Info label="Program" value={programName(app.programId)} />
+                <Info label="Chosen Program" value={originalProgram} />
+                <Info label="Final Program" value={finalProgram} />
                 <Info label="Fee" value={"₦" + app.applicationFee.toLocaleString()} />
               </div>
+
+              {programChanged && (
+                <div style={warningBox}>
+                  Main Admin changed the final track from <strong>{originalProgram}</strong> to <strong>{finalProgram}</strong>.
+                </div>
+              )}
 
               {payment && (
                 <div style={paymentBox}>
@@ -239,28 +289,59 @@ export default function AdminApplications({
                 </div>
               )}
 
+              <div style={finalBox}>
+                <label style={label}>Final Program / Track</label>
+                <select
+                  value={finalProgramId}
+                  onChange={e => changeFinalProgram(app, e.target.value)}
+                  style={selectStyle}
+                  disabled={isApproved}
+                >
+                  {levels.map((level: any) => (
+                    <option key={level.id} value={level.id}>
+                      {level.name}
+                    </option>
+                  ))}
+                </select>
+
+                <p style={meta}>
+                  Use this when the applicant selected the wrong track or the program is not suitable for his/her current level in Intizar.
+                </p>
+              </div>
+
               <div style={regBox}>
-                <label style={{fontSize:13,fontWeight:900,color:C.text}}>Suggested / Final Reg No</label>
+                <label style={label}>Suggested / Final Reg No</label>
                 <Input
                   value={regNos[app.id] || ""}
                   onChange={v => setRegNos(r => ({...r,[app.id]:v.toUpperCase()}))}
                   placeholder="Reg No"
                 />
                 <p style={meta}>
-                  Format: first 2 letters of branch + serial + first 2 letters of program. Main Admin can edit before approval.
+                  Format: first 2 letters of branch + serial + first 2 letters of final program. Main Admin can edit before approval.
                 </p>
               </div>
 
               <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:14}}>
-                <Button onClick={() => verify(app)} disabled={busy || app.paymentStatus === "paid" || app.applicationStatus === "approved"}>
+                <Button
+                  onClick={() => verify(app)}
+                  disabled={busy || app.paymentStatus === "paid" || isApproved}
+                >
                   Verify Payment
                 </Button>
 
-                <Button variant="danger" onClick={() => reject(app)} disabled={busy || app.applicationStatus === "approved"}>
+                <Button
+                  variant="danger"
+                  onClick={() => reject(app)}
+                  disabled={busy || isApproved}
+                >
                   Reject Payment
                 </Button>
 
-                <Button variant="secondary" onClick={() => approve(app)} disabled={busy || app.applicationStatus === "approved"}>
+                <Button
+                  variant="secondary"
+                  onClick={() => approve(app)}
+                  disabled={busy || isApproved}
+                >
                   Approve Application
                 </Button>
               </div>
@@ -315,6 +396,7 @@ function badge(bg: string, color: string): CSSProperties {
 const sectionTitle: CSSProperties = {margin:0,fontSize:22,color:C.text,fontWeight:900};
 const sectionSub: CSSProperties = {margin:"6px 0 0",color:C.muted,fontSize:14};
 const meta: CSSProperties = {fontSize:13,color:C.muted,marginTop:4};
+const label: CSSProperties = {fontSize:13,fontWeight:900,color:C.text};
 const toolbar: CSSProperties = {display:"grid",gridTemplateColumns:"220px 1fr auto",gap:12,alignItems:"center"};
 const selectStyle: CSSProperties = {padding:"12px 14px",border:"1px solid "+C.border,borderRadius:10,background:"#fff"};
 const appTop: CSSProperties = {display:"flex",justifyContent:"space-between",gap:16,alignItems:"start",flexWrap:"wrap"};
@@ -322,18 +404,9 @@ const avatar: CSSProperties = {width:62,height:62,borderRadius:16,objectFit:"cov
 const grid: CSSProperties = {display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,marginTop:16};
 const infoCard: CSSProperties = {border:"1px solid "+C.border,borderRadius:14,padding:14,background:"#f8fafc"};
 const paymentBox: CSSProperties = {border:"1px solid #fde68a",background:"#fffbeb",borderRadius:14,padding:14,marginTop:16,lineHeight:1.6};
-const linkStyle: CSSProperties = {display:"inline-block",marginTop:8,color:C.primary,fontWeight:900,textDecoration:"none"};
+const warningBox: CSSProperties = {border:"1px solid #fed7aa",background:"#fff7ed",borderRadius:14,padding:12,marginTop:14,color:"#9a3412",fontSize:13};
+const linkStyle: CSSProperties = {display:"inline-block",color:C.primary,fontWeight:900,textDecoration:"none",padding:"8px 0"};
+const receiptButton: CSSProperties = {border:"none",background:C.primary,color:"#fff",borderRadius:10,padding:"8px 12px",fontWeight:900,cursor:"pointer",fontSize:13};
+const finalBox: CSSProperties = {display:"grid",gap:8,marginTop:16};
 const regBox: CSSProperties = {display:"grid",gap:8,marginTop:16};
 const emptyState: CSSProperties = {minHeight:120,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",color:C.muted};
-
-
-const receiptButton: CSSProperties = {
-  border:"none",
-  background:C.primary,
-  color:"#fff",
-  borderRadius:10,
-  padding:"8px 12px",
-  fontWeight:900,
-  cursor:"pointer",
-  fontSize:13,
-};
