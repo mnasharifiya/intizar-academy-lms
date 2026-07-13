@@ -20,7 +20,8 @@ const adminNav = [
   { id: "applications", label: "Applications", icon: ClipboardList },
   { id: "courses", label: "Courses", icon: BookOpen },
   { id: "groups", label: "Groups", icon: Layers },
-  { id: "certificates", label: "Certificates", icon: Users },
+  { id: "assessment", label: "Assessment Scheme", icon: Users },
+    { id: "certificates", label: "Certificates", icon: Users },
     { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "chat", label: "Group Chat", icon: MessageCircle },
@@ -206,6 +207,7 @@ export default function AppLayout({
     </div>
   );
 }
+
 
 
 
