@@ -347,3 +347,32 @@ export async function approveApplication(
 
 
 
+
+export async function markApplicationStudentCreated(input: {
+  applicationId: string;
+  studentId: string;
+  finalProgramId: string;
+  regNo: string;
+}): Promise<void> {
+  const now = new Date().toISOString();
+
+  const { error: profileErr } = await supabase
+    .from("profiles")
+    .update({
+      level_id: input.finalProgramId,
+      reg_no: input.regNo,
+    })
+    .eq("id", input.studentId);
+
+  if (profileErr) throw profileErr;
+
+  const { error: appErr } = await supabase
+    .from("applications")
+    .update({
+      created_student_id: input.studentId,
+      updated_at: now,
+    })
+    .eq("id", input.applicationId);
+
+  if (appErr) throw appErr;
+}

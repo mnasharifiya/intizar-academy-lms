@@ -1,9 +1,11 @@
 ﻿import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { PageHeader, Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
+import { createUser, addGroupStudentPending } from "../../lib/api";
 import {
   approveApplication,
   loadApplications,
+  markApplicationStudentCreated,
   rejectApplicationPayment,
   verifyApplicationPayment,
   suggestRegNo,
@@ -25,9 +27,14 @@ export default function AdminApplications({
   const [note, setNote] = useState("");
   const [regNos, setRegNos] = useState<Record<string, string>>({});
   const [finalPrograms, setFinalPrograms] = useState<Record<string, string>>({});
+  const [studentPasswords, setStudentPasswords] = useState<Record<string, string>>({});
+  const [studentGroups, setStudentGroups] = useState<Record<string, string>>({});
 
   const levels = data?.levels ?? [];
+  const groups = data?.groups ?? [];
+  const users = data?.users ?? [];
   const adminGroups = data?.adminGroups ?? [];
+
   const isMainController =
     user?.role === "admin" &&
     adminGroups.filter((ag: any) => ag.adminId === user.id).length === 0;
@@ -39,15 +46,23 @@ export default function AdminApplications({
 
     const nextRegs: Record<string, string> = {};
     const nextPrograms: Record<string, string> = {};
+    const nextGroups: Record<string, string> = {};
 
     for (const app of res.applications) {
       const finalProgramId = app.finalProgramId || app.programId;
+      const eligibleGroups = groupsForProgram(finalProgramId);
+
       nextPrograms[app.id] = finalProgramId;
       nextRegs[app.id] = app.finalRegNo || app.suggestedRegNo || makeSuggested(app, res.applications, finalProgramId);
+
+      if (eligibleGroups.length > 0) {
+        nextGroups[app.id] = eligibleGroups[0].id;
+      }
     }
 
     setRegNos(nextRegs);
     setFinalPrograms(nextPrograms);
+    setStudentGroups(prev => ({ ...nextGroups, ...prev }));
   }
 
   useEffect(() => {
@@ -61,6 +76,7 @@ export default function AdminApplications({
       if (filter === "proof") return latestPayment(app.id)?.status === "submitted";
       if (filter === "paid") return app.paymentStatus === "paid";
       if (filter === "approved") return app.applicationStatus === "approved";
+      if (filter === "created") return !!app.createdStudentId;
       return true;
     });
   }, [applications, payments, filter]);
@@ -69,8 +85,24 @@ export default function AdminApplications({
     return levels.find((l: any) => l.id === id)?.name || "-";
   }
 
+  function userName(id?: string | null) {
+    if (!id) return "-";
+    return users.find((u: any) => u.id === id)?.name || "-";
+  }
+
   function latestPayment(applicationId: string) {
     return payments.find(p => p.applicationId === applicationId) || null;
+  }
+
+  function groupsForProgram(programId: string) {
+    return groups.filter((g: any) =>
+      g.levelId === programId &&
+      g.isActive !== false
+    );
+  }
+
+  function groupHasRestrictedAdmin(groupId: string) {
+    return adminGroups.some((ag: any) => ag.groupId === groupId);
   }
 
   function makeSuggested(app: ApplicationRecord, allApps: ApplicationRecord[], programId?: string) {
@@ -91,6 +123,9 @@ export default function AdminApplications({
 
     const newRegNo = makeSuggested(app, applications, programId);
     setRegNos(prev => ({ ...prev, [app.id]: newRegNo }));
+
+    const eligibleGroups = groupsForProgram(programId);
+    setStudentGroups(prev => ({ ...prev, [app.id]: eligibleGroups[0]?.id || "" }));
   }
 
   function downloadReceipt(app: ApplicationRecord, payment: ApplicationPayment) {
@@ -188,12 +223,115 @@ export default function AdminApplications({
     }
   }
 
+  async function createStudentFromApplication(app: ApplicationRecord) {
+    const finalProgramId = finalPrograms[app.id] || app.finalProgramId || app.programId;
+    const regNo = regNos[app.id];
+    const groupId = studentGroups[app.id];
+    const password = studentPasswords[app.id];
+
+    if (app.createdStudentId) {
+      alert("Student account already created for this application.");
+      return;
+    }
+
+    if (app.applicationStatus !== "approved") {
+      alert("Application must be approved before creating student account.");
+      return;
+    }
+
+    if (app.paymentStatus !== "paid") {
+      alert("Payment must be verified before creating student account.");
+      return;
+    }
+
+    if (!finalProgramId) {
+      alert("Final program is required.");
+      return;
+    }
+
+    if (!groupId) {
+      alert("Please select final group.");
+      return;
+    }
+
+    if (!regNo) {
+      alert("Reg No is required.");
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      alert("Password is required and must be at least 6 characters.");
+      return;
+    }
+
+    const group = groups.find((g: any) => g.id === groupId);
+    if (!group) {
+      alert("Selected group was not found.");
+      return;
+    }
+
+    if (group.levelId !== finalProgramId) {
+      alert("Selected group does not belong to the final program.");
+      return;
+    }
+
+    try {
+      setBusy(true);
+
+      const created = await (createUser as any)({
+        name: app.fullName,
+        email: app.email,
+        password,
+        role: "student",
+        levelId: finalProgramId,
+        status: "active",
+      });
+
+      const studentId =
+        created?.id ||
+        created?.user?.id ||
+        created?.profile?.id ||
+        created?.data?.id ||
+        created?.data?.user?.id;
+
+      if (!studentId) {
+        throw new Error("Student was created, but student ID was not returned.");
+      }
+
+      await markApplicationStudentCreated({
+        applicationId: app.id,
+        studentId,
+        finalProgramId,
+        regNo,
+      });
+
+      const status = groupHasRestrictedAdmin(groupId) ? "pending" : "approved";
+
+      await addGroupStudentPending(groupId, studentId, user.id, status);
+
+      await refresh();
+
+      setStudentPasswords(prev => ({ ...prev, [app.id]: "" }));
+
+      if (status === "pending") {
+        alert("Student account created. Final group access is waiting for Group Admin approval.");
+      } else {
+        alert("Student account created and group access approved.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || "Could not create student from application.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!isMainController) {
     return (
       <Card>
         <h2 style={sectionTitle}>Applications</h2>
         <p style={sectionSub}>
-          Only the Main Controller can verify payments and approve applications.
+          Only the Main Controller can verify payments, approve applications, and create students from applications.
         </p>
       </Card>
     );
@@ -203,7 +341,7 @@ export default function AdminApplications({
     <div>
       <PageHeader
         title="Applications"
-        sub="Verify payment, correct final program/track, approve applications, and prepare Reg No."
+        sub="Verify payment, correct final program/track, approve applications, and create student accounts."
       />
 
       <Card>
@@ -214,6 +352,7 @@ export default function AdminApplications({
             <option value="proof">Proof submitted</option>
             <option value="paid">Paid</option>
             <option value="approved">Approved</option>
+            <option value="created">Student created</option>
           </select>
 
           <Input value={note} onChange={setNote} placeholder="Admin note optional" />
@@ -229,6 +368,10 @@ export default function AdminApplications({
           const originalProgram = programName(app.programId);
           const finalProgram = programName(finalProgramId);
           const programChanged = app.programId !== finalProgramId;
+          const eligibleGroups = groupsForProgram(finalProgramId);
+          const selectedGroupId = studentGroups[app.id] || "";
+          const selectedGroup = groups.find((g: any) => g.id === selectedGroupId);
+          const needsGroupApproval = selectedGroupId ? groupHasRestrictedAdmin(selectedGroupId) : false;
 
           return (
             <Card key={app.id}>
@@ -255,6 +398,7 @@ export default function AdminApplications({
                 <Info label="Chosen Program" value={originalProgram} />
                 <Info label="Final Program" value={finalProgram} />
                 <Info label="Fee" value={"₦" + app.applicationFee.toLocaleString()} />
+                <Info label="Student Account" value={app.createdStudentId ? "Created: " + userName(app.createdStudentId) : "Not created"} />
               </div>
 
               {programChanged && (
@@ -320,6 +464,70 @@ export default function AdminApplications({
                   Format: first 2 letters of branch + serial + first 2 letters of final program. Main Admin can edit before approval.
                 </p>
               </div>
+
+              {isApproved && !app.createdStudentId && (
+                <div style={createBox}>
+                  <h3 style={createTitle}>Create Student Account from Application</h3>
+                  <p style={meta}>
+                    This will create the student profile using the approved application details and save the final Reg No.
+                  </p>
+
+                  <div style={createGrid}>
+                    <div style={{display:"grid",gap:8}}>
+                      <label style={label}>Final Group</label>
+                      <select
+                        value={selectedGroupId}
+                        onChange={e => setStudentGroups(prev => ({...prev,[app.id]:e.target.value}))}
+                        style={selectStyle}
+                      >
+                        <option value="">Select group</option>
+                        {eligibleGroups.map((group: any) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name} {groupHasRestrictedAdmin(group.id) ? "(Group Admin approval required)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{display:"grid",gap:8}}>
+                      <label style={label}>Student Password</label>
+                      <Input
+                        type="password"
+                        value={studentPasswords[app.id] || ""}
+                        onChange={v => setStudentPasswords(prev => ({...prev,[app.id]:v}))}
+                        placeholder="Temporary password"
+                      />
+                    </div>
+                  </div>
+
+                  {selectedGroup && (
+                    <div style={needsGroupApproval ? warningBox : successBox}>
+                      Final group: <strong>{selectedGroup.name}</strong>.{" "}
+                      {needsGroupApproval
+                        ? "This student will wait for Group Admin final approval."
+                        : "This student will be approved immediately because no restricted admin is assigned to this group."}
+                    </div>
+                  )}
+
+                  {eligibleGroups.length === 0 && (
+                    <div style={warningBox}>
+                      No active group exists for this final program. Create a group first before creating the student.
+                    </div>
+                  )}
+
+                  <div style={{marginTop:14}}>
+                    <Button onClick={() => createStudentFromApplication(app)} disabled={busy || eligibleGroups.length === 0}>
+                      Create Student Account
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {app.createdStudentId && (
+                <div style={successBox}>
+                  Student account has already been created for this application.
+                </div>
+              )}
 
               <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:14}}>
                 <Button
@@ -405,8 +613,12 @@ const grid: CSSProperties = {display:"grid",gridTemplateColumns:"repeat(auto-fit
 const infoCard: CSSProperties = {border:"1px solid "+C.border,borderRadius:14,padding:14,background:"#f8fafc"};
 const paymentBox: CSSProperties = {border:"1px solid #fde68a",background:"#fffbeb",borderRadius:14,padding:14,marginTop:16,lineHeight:1.6};
 const warningBox: CSSProperties = {border:"1px solid #fed7aa",background:"#fff7ed",borderRadius:14,padding:12,marginTop:14,color:"#9a3412",fontSize:13};
+const successBox: CSSProperties = {border:"1px solid #bbf7d0",background:"#f0fdf4",borderRadius:14,padding:12,marginTop:14,color:"#166534",fontSize:13};
 const linkStyle: CSSProperties = {display:"inline-block",color:C.primary,fontWeight:900,textDecoration:"none",padding:"8px 0"};
 const receiptButton: CSSProperties = {border:"none",background:C.primary,color:"#fff",borderRadius:10,padding:"8px 12px",fontWeight:900,cursor:"pointer",fontSize:13};
 const finalBox: CSSProperties = {display:"grid",gap:8,marginTop:16};
 const regBox: CSSProperties = {display:"grid",gap:8,marginTop:16};
+const createBox: CSSProperties = {border:"1px solid #dbeafe",background:"#eff6ff",borderRadius:16,padding:16,marginTop:18};
+const createTitle: CSSProperties = {margin:"0 0 6px",color:"#1e3a8a",fontSize:17,fontWeight:900};
+const createGrid: CSSProperties = {display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12,marginTop:12};
 const emptyState: CSSProperties = {minHeight:120,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",color:C.muted};

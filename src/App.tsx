@@ -30,29 +30,71 @@ function scopeData(user: any, data: any) {
   if (!user) return data;
 
   if (user.role === "student") {
-    const approvedMemberships = (data.groupStudents ?? []).filter(
-      (gs: any) => gs.studentId === user.id && isApproved(gs.status)
+    const approvedMyMemberships = (data.groupStudents ?? []).filter((gs: any) =>
+      gs.studentId === user.id &&
+      (gs.status === "approved" || !gs.status)
     );
-    const groupIds = new Set(approvedMemberships.map((gs: any) => gs.groupId));
-    const groups = (data.groups ?? []).filter((g: any) => groupIds.has(g.id));
-    const levelIds = new Set(groups.map((g: any) => g.levelId));
-    const lectures = (data.lectures ?? []).filter((l: any) => groupIds.has(l.groupId));
-    const lectureIds = new Set(lectures.map((l: any) => l.id));
-    const assignments = (data.assignments ?? []).filter((a: any) => groupIds.has(a.groupId));
 
-    return {
+    const myGroupIds = new Set(approvedMyMemberships.map((gs: any) => gs.groupId));
+
+    const groupMemberships = (data.groupStudents ?? []).filter((gs: any) =>
+      myGroupIds.has(gs.groupId) &&
+      (gs.status === "approved" || !gs.status)
+    );
+
+    const classmateIds = new Set(groupMemberships.map((gs: any) => gs.studentId));
+
+    const myGroups = (data.groups ?? []).filter((g: any) => myGroupIds.has(g.id));
+
+    const groupInstructorIds = new Set(
+      myGroups
+        .map((g: any) => g.instructorId)
+        .filter(Boolean)
+    );
+
+    const visibleUserIds = new Set([
+      user.id,
+      ...Array.from(classmateIds),
+      ...Array.from(groupInstructorIds),
+    ]);
+
+    const myCourseIds = new Set([
+      ...(data.levelCourses ?? [])
+        .filter((lc: any) => lc.levelId === user.levelId)
+        .map((lc: any) => lc.courseId),
+      ...(data.assignments ?? [])
+        .filter((a: any) => myGroupIds.has(a.groupId))
+        .map((a: any) => a.courseId)
+        .filter(Boolean),
+      ...(data.lectures ?? [])
+        .filter((l: any) => myGroupIds.has(l.groupId))
+        .map((l: any) => l.courseId)
+        .filter(Boolean),
+    ]);
+return {
       ...data,
-      groups,
-      groupStudents: approvedMemberships,
-      levels: (data.levels ?? []).filter((l: any) => levelIds.has(l.id)),
-      lectures,
-      assignments,
+      users: (data.users ?? []).filter((u: any) => visibleUserIds.has(u.id)),
+      groupStudents: groupMemberships,
+      groups: myGroups,
+      courses: (data.courses ?? []).filter((c: any) => myCourseIds.has(c.id)),
+      levelCourses: (data.levelCourses ?? []).filter((lc: any) => lc.levelId === user.levelId),
+      assignments: (data.assignments ?? []).filter((a: any) => myGroupIds.has(a.groupId)),
+      lectures: (data.lectures ?? []).filter((l: any) => myGroupIds.has(l.groupId)),
+      videos: (data.videos ?? []).filter((v: any) =>
+        myCourseIds.has(v.courseId) ||
+        myGroupIds.has(v.groupId)
+      ),
+      learningMaterials: (data.learningMaterials ?? []).filter((m: any) =>
+        myCourseIds.has(m.courseId) ||
+        myGroupIds.has(m.groupId)
+      ),
       submissions: (data.submissions ?? []).filter((s: any) => s.studentId === user.id),
-      attendance: (data.attendance ?? []).filter((a: any) => a.studentId === user.id || lectureIds.has(a.lectureId)),
+      attendance: (data.attendance ?? []).filter((a: any) => a.studentId === user.id),
       grades: (data.grades ?? []).filter((g: any) => g.studentId === user.id),
-      chats: (data.chats ?? []).filter((c: any) => groupIds.has(c.groupId)),
-      videos: (data.videos ?? []).filter((v: any) => groupIds.has(v.groupId)),
-      learningMaterials: (data.learningMaterials ?? []).filter((m: any) => groupIds.has(m.groupId)),
+      chats: (data.chats ?? []).filter((c: any) =>
+        myGroupIds.has(c.groupId) ||
+        c.userId === user.id
+      ),
       notifications: (data.notifications ?? []).filter((n: any) => n.userId === user.id),
     };
   }
@@ -234,6 +276,8 @@ function App() {
 }
 
 export default App;
+
+
 
 
 
