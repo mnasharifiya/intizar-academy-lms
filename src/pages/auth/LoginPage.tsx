@@ -3,7 +3,7 @@ import { Button, Input } from "../../components/common/ui";
 import { C, APP_NAME } from "../../lib/theme";
 import { signIn } from "../../lib/api";
 
-export default function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
+export default function LoginPage({ onLogin, onApply }: { onLogin: (user: any) => void; onApply?: () => void }) {
   const [email, setEmail] = useState("admin@intizar.edu");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -116,11 +116,18 @@ export default function LoginPage({ onLogin }: { onLogin: (user: any) => void })
             </div>
           </div>
 
-          <Button type="submit" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
-          </Button>
+          <div style={{display:"grid",gap:10}}>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Signing in..." : "Sign In"}
+            </Button>
+
+            <Button type="button" variant="secondary" onClick={onApply}>
+              Apply for Admission
+            </Button>
+          </div>
         </form>
       </div>
     </div>
   );
 }
+

@@ -1,8 +1,19 @@
-﻿import { type CSSProperties } from "react";
+﻿import { useEffect, useState, type CSSProperties } from "react";
 import { Card } from "../../components/common/ui";
 import { C } from "../../lib/theme";
+import {
+  loadApplications,
+  type ApplicationPayment,
+  type ApplicationRecord,
+} from "../../lib/applicationApi";
 
-export default function AdminReports({ user, data }: { user?: any; data: any }) {
+export default function AdminReports({
+  user,
+  data,
+}: {
+  user?: any;
+  data: any;
+}) {
   const users = data?.users ?? [];
   const groups = data?.groups ?? [];
   const levels = data?.levels ?? [];
@@ -18,13 +29,23 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
   const materials = data?.learningMaterials ?? [];
   const adminGroups = data?.adminGroups ?? [];
 
+  const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [payments, setPayments] = useState<ApplicationPayment[]>([]);
+
   const currentAdminLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
   const isRestrictedAdmin = user?.role === "admin" && currentAdminLinks.length > 0;
+  const isMainController = user?.role === "admin" && currentAdminLinks.length === 0;
 
-  const reportScope =
-    isRestrictedAdmin
-      ? groups.map((g: any) => g.name).join(", ") || "No assigned groups"
-      : "All groups";
+  useEffect(() => {
+    if (!isMainController) return;
+
+    loadApplications()
+      .then(res => {
+        setApplications(res.applications);
+        setPayments(res.payments);
+      })
+      .catch(err => console.warn("Application report load failed:", err));
+  }, [isMainController]);
 
   const students = users.filter((u: any) => u.role === "student");
   const instructors = users.filter((u: any) => u.role === "instructor");
@@ -40,7 +61,7 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
 
   function groupMembers(groupId: string) {
     return groupStudents
-      .filter((gs: any) => gs.groupId === groupId)
+      .filter((gs: any) => gs.groupId === groupId && gs.status !== "rejected")
       .map((gs: any) => users.find((u: any) => u.id === gs.studentId))
       .filter(Boolean);
   }
@@ -126,8 +147,7 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
 
     return students.filter((s: any) => levelIds.includes(s.levelId)).length;
   }
-
-  const scopeRows = groups.map((group: any) => ({
+  const reportScopeRows = groups.map((group: any) => ({
     group: group.name,
     program: levelName(group.levelId),
     instructor: userName(group.instructorId),
@@ -145,7 +165,7 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
 
   const groupRows = groups.map((group: any) => ({
     group: group.name,
-    level: levelName(group.levelId),
+    program: levelName(group.levelId),
     instructor: userName(group.instructorId),
     students: groupMembers(group.id).length,
     capacity: group.maxStudents,
@@ -157,7 +177,7 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
 
   const courseRows = courses.map((course: any) => ({
     course: course.name,
-    assignedLevels: levelCourses.filter((lc: any) => lc.courseId === course.id).length,
+    assignedPrograms: levelCourses.filter((lc: any) => lc.courseId === course.id).length,
     students: courseStudentCount(course.id),
     lectures: lectures.filter((l: any) => l.courseId === course.id).length,
     assignments: assignments.filter((a: any) => a.courseId === course.id).length,
@@ -187,7 +207,7 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
       return {
         student: student.name,
         email: student.email,
-        level: levelName(student.levelId),
+        program: levelName(student.levelId),
         group: myGroup?.name || "-",
         gradeAverage: displayPercent(avg),
         attendance: displayPercent(att),
@@ -197,13 +217,74 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
     })
     .filter((row: any) => row.riskReason !== "Normal");
 
-  const sections = [
+  const applicationRows = applications.map(app => ({
+    applicationNo: app.applicationNo,
+    applicant: app.fullName,
+    email: app.email,
+    phone: app.phoneNo,
+    zone: app.zone,
+    branch: app.branch,
+    workInBranch: app.workInBranch,
+    program: levelName(app.programId),
+    amount: formatMoney(app.applicationFee),
+    paymentReference: app.paymentReference,
+    paymentStatus: app.paymentStatus,
+    applicationStatus: app.applicationStatus,
+    submittedAt: formatDate(app.createdAt),
+  }));
+
+  const paymentRows = payments.map(payment => {
+    const app = applications.find(a => a.id === payment.applicationId);
+    return {
+      paymentCategory: "Application / Enrollment Fee",
+      applicant: app?.fullName || "-",
+      applicationNo: app?.applicationNo || "-",
+      paymentReference: payment.paymentReference,
+      transactionReference: payment.transactionReference || "-",
+      payerName: payment.payerName || "-",
+      bankName: payment.bankName || "-",
+      amountPaid: formatMoney(payment.amount),
+      paymentStatus: payment.status,
+      paymentSubmittedAt: formatDate(payment.createdAt),
+      verifiedAt: formatDate(payment.verifiedAt),
+    };
+  });
+
+  const enrolledRows = applications
+    .filter(app => app.applicationStatus === "approved")
+    .map(app => ({
+      studentOrApplicant: app.fullName,
+      email: app.email,
+      phone: app.phoneNo,
+      branch: app.branch,
+      program: levelName(app.programId),
+      regNo: app.finalRegNo || app.suggestedRegNo || "-",
+      amountPaid: formatMoney(app.applicationFee),
+      paymentCategory: "Application / Enrollment Fee",
+      paymentReference: app.paymentReference,
+      paymentVerifiedAt: formatDate(app.paymentVerifiedAt),
+      enrolledOrApprovedAt: formatDate(app.mainAdminApprovedAt),
+    }));
+
+  const totalPaid = payments
+    .filter(p => p.status === "verified")
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  const financeSummaryRows = [
+    { item: "Total applications", value: applications.length },
+    { item: "Payment proofs submitted", value: payments.filter(p => p.status === "submitted").length },
+    { item: "Verified payments", value: payments.filter(p => p.status === "verified").length },
+    { item: "Approved/enrolled applications", value: enrolledRows.length },
+    { item: "Total verified amount", value: formatMoney(totalPaid) },
+  ];
+
+  const academicSections = [
     {
       title: "Report Scope",
       sub: isRestrictedAdmin
-        ? "This report contains only the groups assigned to this admin."
+        ? "This report contains only this admin's assigned groups."
         : "This report contains all groups because this account is Main Controller.",
-      rows: scopeRows,
+      rows: reportScopeRows,
       filename: "intizar-report-scope.xls",
     },
     { title: "User Summary", sub: "Total users by role", rows: userRows, filename: "intizar-user-summary.xls" },
@@ -212,14 +293,32 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
     { title: "At-risk Students", sub: "Students who may need attention", rows: atRiskRows, filename: "intizar-at-risk-students.xls" },
   ];
 
+  const financeSections = isMainController
+    ? [
+        { title: "Finance Summary", sub: "Application and enrollment payment totals", rows: financeSummaryRows, filename: "intizar-finance-summary.xls" },
+        { title: "Enrollment Report", sub: "Approved applications/enrolled students with date, amount, and payment category", rows: enrolledRows, filename: "intizar-enrollment-report.xls" },
+        { title: "Payment Transactions", sub: "All submitted and verified payment records", rows: paymentRows, filename: "intizar-payment-transactions.xls" },
+        { title: "Application Register", sub: "All submitted application records", rows: applicationRows, filename: "intizar-application-register.xls" },
+      ]
+    : [
+        {
+          title: "Financial Reports",
+          sub: "Restricted admins cannot view global payment reports.",
+          rows: [{ scope: "Restricted Admin", note: "Only Main Controller can view and download application/payment finance reports." }],
+          filename: "intizar-finance-scope.xls",
+        },
+      ];
+
+  const sections = [...financeSections, ...academicSections];
+
   return (
     <div>
       <div style={hero}>
         <div>
           <div style={eyebrow}>Admin Reports</div>
-          <h1 style={heroTitle}>Platform Analytics & Performance</h1>
+          <h1 style={heroTitle}>Reports, Finance & Performance</h1>
           <p style={heroSub}>
-            Download reports as spreadsheet tables or print/save them as PDF. Report scope: ${reportScope}.
+            Download spreadsheet reports or print/save as PDF. Includes enrollment, payment, academic, and group reports.
           </p>
         </div>
 
@@ -235,10 +334,10 @@ export default function AdminReports({ user, data }: { user?: any; data: any }) 
 
       <div style={statsGrid}>
         <Stat label="Students" value={String(students.length)} />
-        <Stat label="Instructors" value={String(instructors.length)} />
         <Stat label="Groups" value={String(groups.length)} />
-        <Stat label="Courses" value={String(courses.length)} />
-        <Stat label="Assignments" value={String(assignments.length)} />
+        <Stat label="Applications" value={isMainController ? String(applications.length) : "-"} />
+        <Stat label="Enrolled/Paid" value={isMainController ? String(enrolledRows.length) : "-"} />
+        <Stat label="Verified Amount" value={isMainController ? formatMoney(totalPaid) : "-"} />
         <Stat label="At-risk Students" value={String(atRiskRows.length)} danger={atRiskRows.length > 0} />
       </div>
 
@@ -334,14 +433,21 @@ function displayPercent(value: number | null) {
   return value === null ? "-" : value + "%";
 }
 
+function formatMoney(value: number) {
+  return "₦" + Number(value || 0).toLocaleString();
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString();
+}
+
 function formatHeader(value: string) {
   return value.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase());
 }
 
 function tableHtml(rows: any[]) {
-  if (!rows.length) {
-    return "<p>No records found.</p>";
-  }
+  if (!rows.length) return "<p>No records found.</p>";
 
   const headers = Object.keys(rows[0]);
 
@@ -409,50 +515,16 @@ function printReport(title: string, sections: { title: string; sub?: string; row
       <head>
         <title>${escapeHtml(title)}</title>
         <style>
-          body {
-            font-family: Arial, sans-serif;
-            padding: 28px;
-            color: #0f172a;
-          }
-          h1 {
-            color: #052e16;
-            margin-bottom: 4px;
-          }
-          h2 {
-            color: #166534;
-            margin-top: 28px;
-            border-bottom: 2px solid #dcfce7;
-            padding-bottom: 6px;
-          }
-          p {
-            color: #475569;
-          }
-          table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-top: 12px;
-            page-break-inside: auto;
-          }
-          th {
-            background: #dcfce7;
-            color: #052e16;
-            text-align: left;
-            font-weight: bold;
-          }
-          th, td {
-            border: 1px solid #94a3b8;
-            padding: 8px;
-            font-size: 12px;
-          }
-          tr {
-            page-break-inside: avoid;
-          }
-          .meta {
-            margin-bottom: 20px;
-          }
-          @media print {
-            button { display: none; }
-          }
+          body { font-family: Arial, sans-serif; padding: 28px; color: #0f172a; }
+          h1 { color: #052e16; margin-bottom: 4px; }
+          h2 { color: #166534; margin-top: 28px; border-bottom: 2px solid #dcfce7; padding-bottom: 6px; }
+          p { color: #475569; }
+          table { border-collapse: collapse; width: 100%; margin-top: 12px; page-break-inside: auto; }
+          th { background: #dcfce7; color: #052e16; text-align: left; font-weight: bold; }
+          th, td { border: 1px solid #94a3b8; padding: 8px; font-size: 12px; }
+          tr { page-break-inside: avoid; }
+          .meta { margin-bottom: 20px; }
+          @media print { button { display: none; } }
         </style>
       </head>
       <body>

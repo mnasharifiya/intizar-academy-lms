@@ -17,6 +17,7 @@ import {
 const adminNav = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "users", label: "Users", icon: Users },
+  { id: "applications", label: "Applications", icon: ClipboardList },
   { id: "courses", label: "Courses", icon: BookOpen },
   { id: "groups", label: "Groups", icon: Layers },
   { id: "reports", label: "Reports", icon: BarChart3 },
@@ -204,4 +205,5 @@ export default function AppLayout({
     </div>
   );
 }
+
 

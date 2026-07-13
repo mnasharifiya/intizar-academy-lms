@@ -1,8 +1,10 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import LoginPage from "./pages/auth/LoginPage";
+import ApplicationForm from "./pages/public/ApplicationForm";
 import AppLayout from "./components/layout/AppLayout";
 import AdminDashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/Users";
+import AdminApplications from "./pages/admin/Applications";
 import CoursesPage from "./pages/admin/Courses";
 import GroupsPage from "./pages/admin/Groups";
 import AdminReports from "./pages/admin/Reports";
@@ -140,6 +142,7 @@ function scopeData(user: any, data: any) {
 function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [page, setPage] = useState("dashboard");
+  const [publicPage, setPublicPage] = useState<"login" | "apply">("login");
   const [data, setData] = useState<any>({
     users: [],
     levels: [],
@@ -177,7 +180,11 @@ function App() {
   }, [currentUser]);
 
   if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
+    if (publicPage === "apply") {
+      return <ApplicationForm onBackToLogin={() => setPublicPage("login")} />;
+    }
+
+    return <LoginPage onLogin={handleLogin} onApply={() => setPublicPage("apply")} />;
   }
 
   function renderPage() {
@@ -203,6 +210,7 @@ function App() {
     }
 
     if (page === "dashboard") return <AdminDashboard data={scopedData} />;
+    if (page === "applications") return <AdminApplications user={currentUser} data={scopedData} />;
     if (page === "users") return <UsersPage user={currentUser} data={scopedData} setData={setData} />;
     if (page === "courses") return <CoursesPage data={scopedData} setData={setData} />;
     if (page === "groups") return <GroupsPage user={currentUser} data={scopedData} setData={setData} />;
@@ -226,5 +234,9 @@ function App() {
 }
 
 export default App;
+
+
+
+
 
 
