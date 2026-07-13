@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import LoginPage from "./pages/auth/LoginPage";
 import ApplicationForm from "./pages/public/ApplicationForm";
+import CertificateVerify from "./pages/public/CertificateVerify";
 import AppLayout from "./components/layout/AppLayout";
 import AdminDashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/Users";
@@ -185,7 +186,7 @@ return {
 function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [page, setPage] = useState("dashboard");
-  const [publicPage, setPublicPage] = useState<"login" | "apply">("login");
+  const [publicPage, setPublicPage] = useState<"login" | "apply" | "verify">("login");
   const [data, setData] = useState<any>({
     users: [],
     levels: [],
@@ -227,7 +228,17 @@ function App() {
       return <ApplicationForm onBackToLogin={() => setPublicPage("login")} />;
     }
 
-    return <LoginPage onLogin={handleLogin} onApply={() => setPublicPage("apply")} />;
+    if (publicPage === "verify") {
+      return <CertificateVerify onBackToLogin={() => setPublicPage("login")} />;
+    }
+
+    return (
+      <LoginPage
+        onLogin={handleLogin}
+        onApply={() => setPublicPage("apply")}
+        onVerify={() => setPublicPage("verify")}
+      />
+    );
   }
 
   function renderPage() {
@@ -278,6 +289,7 @@ function App() {
 }
 
 export default App;
+
 
 
 

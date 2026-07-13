@@ -137,3 +137,20 @@ export async function revokeCertificate(input: {
 
   if (error) throw error;
 }
+
+export async function verifyCertificate(input: {
+  certificateNo: string;
+  verificationToken: string;
+}): Promise<CertificateRecord | null> {
+  const { data, error } = await supabase
+    .from("certificates")
+    .select("*")
+    .eq("certificate_no", input.certificateNo.trim())
+    .eq("verification_token", input.verificationToken.trim())
+    .eq("status", "valid")
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data ? mapCertificate(data as any) : null;
+}

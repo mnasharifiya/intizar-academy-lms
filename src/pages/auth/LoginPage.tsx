@@ -3,7 +3,7 @@ import { Button, Input } from "../../components/common/ui";
 import { C, APP_NAME } from "../../lib/theme";
 import { signIn } from "../../lib/api";
 
-export default function LoginPage({ onLogin, onApply }: { onLogin: (user: any) => void; onApply?: () => void }) {
+export default function LoginPage({ onLogin, onApply, onVerify }: { onLogin: (user: any) => void; onApply?: () => void; onVerify?: () => void }) {
   const [email, setEmail] = useState("admin@intizar.edu");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -124,10 +124,15 @@ export default function LoginPage({ onLogin, onApply }: { onLogin: (user: any) =
             <Button type="button" variant="secondary" onClick={onApply}>
               Apply for Admission
             </Button>
+
+            <Button type="button" variant="secondary" onClick={onVerify}>
+              Verify Certificate
+            </Button>
           </div>
         </form>
       </div>
     </div>
   );
 }
+
 
