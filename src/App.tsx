@@ -8,6 +8,7 @@ import AdminApplications from "./pages/admin/Applications";
 import CoursesPage from "./pages/admin/Courses";
 import GroupsPage from "./pages/admin/Groups";
 import AdminReports from "./pages/admin/Reports";
+import AdminCertificates from "./pages/admin/Certificates";
 import GradeManagement from "./pages/admin/GradeManagement";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
@@ -257,6 +258,7 @@ function App() {
     if (page === "courses") return <CoursesPage data={scopedData} setData={setData} />;
     if (page === "groups") return <GroupsPage user={currentUser} data={scopedData} setData={setData} />;
     if (page === "reports") return <AdminReports user={currentUser} data={scopedData} />;
+    if (page === "certificates") return <AdminCertificates user={currentUser} data={scopedData} />;
     if (page === "notifications") return <NotificationsPage user={currentUser} data={scopedData} setData={setData} />;
     if (page === "chat") return <GroupChat user={currentUser} data={scopedData} setData={setData} />;
 
@@ -276,6 +278,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
