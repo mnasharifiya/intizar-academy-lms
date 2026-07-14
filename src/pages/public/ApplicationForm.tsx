@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
-import { Button, Card, Input } from "../../components/common/ui";
+import { Button, Card } from "../../components/common/ui";
 import { APP_NAME, C } from "../../lib/theme";
 import {
   listApplicationPrograms,
@@ -212,27 +212,27 @@ export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () 
 
             <form onSubmit={submitNewApplication} style={formGrid}>
               <Field label="Full Name">
-                <Input value={form.fullName} onChange={(e: any) => updateForm("fullName", e.target.value)} />
+                <TextInput value={form.fullName} onChange={(e: any) => updateForm("fullName", e.target.value)} />
               </Field>
 
               <Field label="Email">
-                <Input type="email" value={form.email} onChange={(e: any) => updateForm("email", e.target.value)} />
+                <TextInput type="email" value={form.email} onChange={(e: any) => updateForm("email", e.target.value)} />
               </Field>
 
               <Field label="Phone Number">
-                <Input value={form.phoneNo} onChange={(e: any) => updateForm("phoneNo", e.target.value)} />
+                <TextInput value={form.phoneNo} onChange={(e: any) => updateForm("phoneNo", e.target.value)} />
               </Field>
 
               <Field label="Zone">
-                <Input value={form.zone} onChange={(e: any) => updateForm("zone", e.target.value)} />
+                <TextInput value={form.zone} onChange={(e: any) => updateForm("zone", e.target.value)} />
               </Field>
 
               <Field label="Branch">
-                <Input value={form.branch} onChange={(e: any) => updateForm("branch", e.target.value)} />
+                <TextInput value={form.branch} onChange={(e: any) => updateForm("branch", e.target.value)} />
               </Field>
 
               <Field label="Work in Branch">
-                <Input
+                <TextInput
                   value={form.workInBranch}
                   onChange={(e: any) => updateForm("workInBranch", e.target.value)}
                   placeholder="Example: Secretary, member, youth section, etc."
@@ -284,7 +284,7 @@ export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () 
 
             <form onSubmit={submitProofForm} style={formGrid}>
               <Field label="Application Number">
-                <Input
+                <TextInput
                   value={proof.applicationNo}
                   onChange={(e: any) => updateProof("applicationNo", e.target.value)}
                   placeholder="Example: APP-..."
@@ -292,7 +292,7 @@ export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () 
               </Field>
 
               <Field label="Payment Reference">
-                <Input
+                <TextInput
                   value={proof.paymentReference}
                   onChange={(e: any) => updateProof("paymentReference", e.target.value)}
                   placeholder="Example: PAY-..."
@@ -300,15 +300,15 @@ export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () 
               </Field>
 
               <Field label="Payer Name">
-                <Input value={proof.payerName} onChange={(e: any) => updateProof("payerName", e.target.value)} />
+                <TextInput value={proof.payerName} onChange={(e: any) => updateProof("payerName", e.target.value)} />
               </Field>
 
               <Field label="Bank Name Used">
-                <Input value={proof.bankName} onChange={(e: any) => updateProof("bankName", e.target.value)} />
+                <TextInput value={proof.bankName} onChange={(e: any) => updateProof("bankName", e.target.value)} />
               </Field>
 
               <Field label="Transaction Reference">
-                <Input
+                <TextInput
                   value={proof.transactionReference}
                   onChange={(e: any) => updateProof("transactionReference", e.target.value)}
                   placeholder="Bank transfer reference"
@@ -363,6 +363,10 @@ function PaymentDetails({ settings }: { settings: AppSettings }) {
       </div>
     </Card>
   );
+}
+
+function TextInput(props: any) {
+  return <input style={inputStyle} {...props} />;
 }
 
 function Field({
@@ -479,6 +483,17 @@ const labelStyle: CSSProperties = {
   color: C.text,
 };
 
+const inputStyle: CSSProperties = {
+  width: "100%",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  padding: "12px 14px",
+  outline: "none",
+  background: "#fff",
+  fontSize: 14,
+  color: C.text,
+};
+
 const selectStyle: CSSProperties = {
   width: "100%",
   border: "1px solid #e2e8f0",
@@ -525,4 +540,6 @@ const infoCard: CSSProperties = {
   borderRadius: 14,
   padding: 12,
 };
+
+
 

@@ -155,10 +155,24 @@ export function InstructorMaterialsManager({
   }
 
   async function openMaterial(material: any) {
+    const win = window.open("", "_blank", "noopener,noreferrer");
+
     try {
       const url = await getLearningMaterialUrl(material);
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
+
+      if (!url) {
+        if (win) win.close();
+        alert("Material file/link is not available.");
+        return;
+      }
+
+      if (win) {
+        win.location.href = url;
+      } else {
+        window.location.href = url;
+      }
     } catch (err: any) {
+      if (win) win.close();
       alert(err?.message || "Could not open material.");
     }
   }
@@ -316,10 +330,24 @@ export function StudentMaterialsList({
   }
 
   async function openMaterial(material: any) {
+    const win = window.open("", "_blank", "noopener,noreferrer");
+
     try {
       const url = await getLearningMaterialUrl(material);
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
+
+      if (!url) {
+        if (win) win.close();
+        alert("Material file/link is not available.");
+        return;
+      }
+
+      if (win) {
+        win.location.href = url;
+      } else {
+        window.location.href = url;
+      }
     } catch (err: any) {
+      if (win) win.close();
       alert(err?.message || "Could not open material.");
     }
   }
@@ -495,3 +523,4 @@ const dangerButton: CSSProperties = {
   fontWeight:900,
   cursor:"pointer",
 };
+
