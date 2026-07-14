@@ -10,6 +10,15 @@ import {
   type CertificateRecord,
 } from "../../lib/certificateApi";
 import { loadApplications, type ApplicationRecord } from "../../lib/applicationApi";
+import { loadCourseResults, type StudentCourseResult } from "../../lib/scoreApi";
+import {
+  createRemedialPayment,
+  loadRemedialPayments,
+  remedialAmount,
+  rejectRemedialPayment,
+  verifyRemedialPayment,
+  type RemedialPayment,
+} from "../../lib/remedialApi";
 
 const REQUIRED_OVERALL = 70;
 const REQUIRED_ATTENDANCE = 70;
@@ -24,12 +33,14 @@ export default function AdminCertificates({
   const users = data?.users ?? [];
   const levels = data?.levels ?? [];
   const groups = data?.groups ?? [];
+  const courses = data?.courses ?? [];
   const groupStudents = data?.groupStudents ?? [];
-  const grades = data?.grades ?? [];
   const attendance = data?.attendance ?? [];
 
   const [certificates, setCertificates] = useState<CertificateRecord[]>([]);
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [remedialPayments, setRemedialPayments] = useState<RemedialPayment[]>([]);
+  const [courseResults, setCourseResults] = useState<StudentCourseResult[]>([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,13 +48,17 @@ export default function AdminCertificates({
   const students = users.filter((u: any) => u.role === "student");
 
   async function refresh() {
-    const [certs, apps] = await Promise.all([
+    const [certs, apps, remedials, results] = await Promise.all([
       loadCertificates(),
       loadApplications().then(res => res.applications).catch(() => []),
+      loadRemedialPayments().catch(() => []),
+      loadCourseResults().catch(() => []),
     ]);
 
     setCertificates(certs);
     setApplications(apps);
+    setRemedialPayments(remedials);
+    setCourseResults(results);
   }
 
   useEffect(() => {
@@ -53,6 +68,11 @@ export default function AdminCertificates({
   function programName(id?: string | null) {
     if (!id) return "-";
     return levels.find((l: any) => l.id === id)?.name || "-";
+  }
+
+  function courseName(id?: string | null) {
+    if (!id) return "Unknown Course";
+    return courses.find((c: any) => c.id === id)?.name || "Unknown Course";
   }
 
   function groupName(id?: string | null) {
@@ -77,35 +97,79 @@ export default function AdminCertificates({
     return certificates.find(c => c.studentId === studentId && c.status === "valid") || null;
   }
 
+  function latestRemedialPayment(studentId: string) {
+    return remedialPayments.find(p => p.studentId === studentId) || null;
+  }
+
+  function unpaidRemedialPayments(studentId: string) {
+    return remedialPayments.filter(p =>
+      p.studentId === studentId &&
+      p.status !== "verified"
+    );
+  }
+
   function averageGrade(studentId: string) {
-    const list = grades.filter((g: any) => g.studentId === studentId);
+    const list = courseResults.filter(result =>
+      result.studentId === studentId &&
+      result.assessmentComplete
+    );
 
     if (!list.length) return null;
 
     return Math.round(
-      list.reduce((sum: number, g: any) => sum + Number(g.score || 0), 0) / list.length
+      list.reduce((sum, result) => sum + Number(result.finalGrade || 0), 0) / list.length
     );
   }
 
-  function attendancePercent(studentId: string) {
+  function failedCourses(studentId: string) {
+    return courseResults
+      .filter(result =>
+        result.studentId === studentId &&
+        result.assessmentComplete &&
+        result.status === "failed"
+      )
+      .map(result => ({
+        courseId: result.courseId,
+        courseName: courseName(result.courseId),
+        average: result.finalGrade,
+        required: result.passMark,
+      }));
+  }
+
+  function attendanceInfo(studentId: string) {
     const list = attendance.filter((a: any) => a.studentId === studentId);
 
-    if (!list.length) return null;
+    if (!list.length) {
+      return {
+        percent: null as number | null,
+        badCount: 0,
+        refresherRequired: false,
+      };
+    }
 
-    const good = list.filter((a: any) =>
-      a.status === "present" ||
-      a.status === "late" ||
-      a.status === "excused"
-    ).length;
+    const good = list.filter((a: any) => {
+      const status = String(a.status || "").toLowerCase();
+      return status === "present" || status === "late" || status === "excused";
+    }).length;
 
-    return Math.round((good / list.length) * 100);
+    const badCount = list.length - good;
+    const percent = Math.round((good / list.length) * 100);
+
+    return {
+      percent,
+      badCount,
+      refresherRequired: percent < REQUIRED_ATTENDANCE && badCount > 0,
+    };
   }
 
   function eligibility(student: any) {
     const app = studentApplication(student.id);
     const group = studentGroup(student.id);
     const avg = averageGrade(student.id);
-    const att = attendancePercent(student.id);
+    const att = attendanceInfo(student.id);
+    const failed = failedCourses(student.id);
+    const latestRemedial = latestRemedialPayment(student.id);
+    const unpaidRemedials = unpaidRemedialPayments(student.id);
 
     const reasons: string[] = [];
 
@@ -119,8 +183,30 @@ export default function AdminCertificates({
       reasons.push(`Overall assessment is ${avg}%, required ${REQUIRED_OVERALL}%.`);
     }
 
-    if (att !== null && att < REQUIRED_ATTENDANCE) {
-      reasons.push(`Attendance is ${att}%, required ${REQUIRED_ATTENDANCE}%.`);
+    if (failed.length > 0) {
+      const amount = remedialAmount(failed.length);
+
+      reasons.push(
+        `Failed ${failed.length} course(s): ${failed.map(c => c.courseName + " (" + c.average + "%)").join(", ")}.`
+      );
+
+      if (!latestRemedial) {
+        reasons.push(`Remedial payment must be generated. Amount: ₦${amount.toLocaleString()}.`);
+      } else if (latestRemedial.status !== "verified") {
+        reasons.push(`Remedial payment is not verified. Status: ${latestRemedial.status}.`);
+      } else {
+        reasons.push("Remedial payment is verified, but failed assessment is not yet cleared.");
+      }
+    }
+
+    if (failed.length === 0 && unpaidRemedials.length > 0) {
+      reasons.push("There is an existing remedial payment that has not been verified.");
+    }
+
+    if (att.refresherRequired) {
+      reasons.push(
+        `Attendance is ${att.percent}%, required ${REQUIRED_ATTENDANCE}%. No payment option. Student must enroll in Refresher Program.`
+      );
     }
 
     if (app && !(app.paymentStatus === "paid" && app.applicationStatus === "approved")) {
@@ -131,7 +217,13 @@ export default function AdminCertificates({
       eligible: reasons.length === 0,
       reasons,
       average: avg,
-      attendance: att,
+      attendance: att.percent,
+      badAttendanceCount: att.badCount,
+      refresherRequired: att.refresherRequired,
+      failedCourses: failed,
+      remedialAmount: remedialAmount(failed.length),
+      latestRemedial,
+      unpaidRemedials,
       application: app,
       group,
       programId: app?.finalProgramId || student.levelId || group?.levelId || null,
@@ -162,6 +254,8 @@ export default function AdminCertificates({
         if (filter === "blocked" && row.eligibility.eligible) return false;
         if (filter === "issued" && !row.certificate) return false;
         if (filter === "not-issued" && row.certificate) return false;
+        if (filter === "remedial" && row.eligibility.failedCourses.length === 0) return false;
+        if (filter === "refresher" && !row.eligibility.refresherRequired) return false;
 
         if (!q) return true;
 
@@ -172,7 +266,7 @@ export default function AdminCertificates({
           certStatus.includes(q)
         );
       });
-  }, [students, certificates, applications, grades, attendance, search, filter]);
+  }, [students, certificates, applications, remedialPayments, courseResults, attendance, search, filter]);
 
   async function generate(student: any) {
     const e = eligibility(student);
@@ -212,6 +306,9 @@ export default function AdminCertificates({
           requiredAttendance: REQUIRED_ATTENDANCE,
           average: e.average,
           attendance: e.attendance,
+          failedCourses: e.failedCourses,
+          remedialPayment: e.latestRemedial,
+          refresherRequired: e.refresherRequired,
           group: e.group?.name || null,
           paymentStatus: e.application?.paymentStatus || "legacy/manual student",
           applicationStatus: e.application?.applicationStatus || "legacy/manual student",
@@ -224,6 +321,92 @@ export default function AdminCertificates({
     } catch (err: any) {
       console.error(err);
       alert(err?.message || "Could not generate certificate.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generateRemedial(student: any) {
+    const e = eligibility(student);
+
+    if (e.refresherRequired) {
+      alert("No remedial payment is allowed. Student must enroll in Refresher Program because of attendance.");
+      return;
+    }
+
+    if (e.failedCourses.length === 0) {
+      alert("No failed course found.");
+      return;
+    }
+
+    if (e.latestRemedial && e.latestRemedial.status !== "rejected") {
+      alert("A remedial payment already exists for this student.");
+      return;
+    }
+
+    const ok = confirm(
+      `Generate remedial payment for ${student.name}?\n\nFailed courses: ${e.failedCourses.length}\nAmount: ₦${e.remedialAmount.toLocaleString()}`
+    );
+
+    if (!ok) return;
+
+    try {
+      setBusy(true);
+
+      await createRemedialPayment({
+        studentId: student.id,
+        programId: e.programId,
+        groupId: e.group?.id || null,
+        failedCourses: e.failedCourses,
+        createdBy: user.id,
+      });
+
+      await refresh();
+      alert("Remedial payment generated.");
+    } catch (err: any) {
+      alert(err?.message || "Could not generate remedial payment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyRemedial(payment: RemedialPayment) {
+    const note = prompt("Admin note for remedial payment verification:") || "";
+
+    try {
+      setBusy(true);
+      await verifyRemedialPayment({
+        paymentId: payment.id,
+        verifiedBy: user.id,
+        note,
+      });
+
+      await refresh();
+      alert("Remedial payment verified.");
+    } catch (err: any) {
+      alert(err?.message || "Could not verify remedial payment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rejectRemedial(payment: RemedialPayment) {
+    const note = prompt("Reason for rejecting remedial payment:");
+
+    if (!note) return;
+
+    try {
+      setBusy(true);
+      await rejectRemedialPayment({
+        paymentId: payment.id,
+        verifiedBy: user.id,
+        note,
+      });
+
+      await refresh();
+      alert("Remedial payment rejected.");
+    } catch (err: any) {
+      alert(err?.message || "Could not reject remedial payment.");
     } finally {
       setBusy(false);
     }
@@ -262,9 +445,10 @@ export default function AdminCertificates({
         <div style={rulesBox}>
           <strong>Certificate Blocking Rules</strong>
           <div>Overall assessment required: {REQUIRED_OVERALL}%</div>
-          <div>Attendance required: {REQUIRED_ATTENDANCE}% if attendance records exist</div>
+          <div>1 failed course remedial fee: ₦200</div>
+          <div>More than 1 failed course: ₦250 per failed course</div>
+          <div>Attendance failure without valid excuse: no payment option, student must enroll in Refresher Program</div>
           <div>Student must be approved in a group</div>
-          <div>Application payment must be verified when the student was created from application</div>
         </div>
 
         <div style={toolbar}>
@@ -272,6 +456,8 @@ export default function AdminCertificates({
             <option value="all">All students</option>
             <option value="eligible">Eligible only</option>
             <option value="blocked">Blocked only</option>
+            <option value="remedial">Needs remedial payment</option>
+            <option value="refresher">Needs refresher program</option>
             <option value="issued">Certificate issued</option>
             <option value="not-issued">Not issued</option>
           </select>
@@ -289,6 +475,7 @@ export default function AdminCertificates({
           const student = row.student;
           const e = row.eligibility;
           const cert = row.certificate;
+          const remedial = e.latestRemedial;
 
           return (
             <Card key={student.id}>
@@ -309,9 +496,56 @@ export default function AdminCertificates({
               <div style={grid}>
                 <Info label="Overall Assessment" value={e.average === null ? "-" : e.average + "%"} />
                 <Info label="Attendance" value={e.attendance === null ? "-" : e.attendance + "%"} />
+                <Info label="Failed Courses" value={String(e.failedCourses.length)} />
+                <Info label="Remedial Amount" value={e.failedCourses.length ? "₦" + e.remedialAmount.toLocaleString() : "-"} />
                 <Info label="Payment" value={e.application ? e.application.paymentStatus : "Legacy/manual"} />
                 <Info label="Application" value={e.application ? e.application.applicationStatus : "Legacy/manual"} />
               </div>
+
+              {e.refresherRequired && (
+                <div style={refresherBox}>
+                  <strong>Refresher Program Required</strong>
+                  <p>
+                    Attendance is below the required level with lost attendance/no valid excuse.
+                    No payment option is allowed. This student must enroll in Refresher Program.
+                  </p>
+                </div>
+              )}
+
+              {e.failedCourses.length > 0 && (
+                <div style={remedialBox}>
+                  <strong>Remedial Course Payment</strong>
+                  <div style={meta}>Failed courses: {e.failedCourses.map((c: any) => `${c.courseName} (${c.average}%)`).join(", ")}</div>
+                  <div style={meta}>Amount: ₦{e.remedialAmount.toLocaleString()}</div>
+
+                  {remedial ? (
+                    <>
+                      <div style={meta}>Reference: {remedial.paymentReference}</div>
+                      <div style={meta}>Status: {remedial.status}</div>
+
+                      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:10}}>
+                        {remedial.status !== "verified" && (
+                          <>
+                            <Button onClick={() => verifyRemedial(remedial)} disabled={busy}>
+                              Verify Remedial Payment
+                            </Button>
+
+                            <Button variant="danger" onClick={() => rejectRemedial(remedial)} disabled={busy}>
+                              Reject Remedial Payment
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{marginTop:12}}>
+                      <Button onClick={() => generateRemedial(student)} disabled={busy || e.refresherRequired}>
+                        Generate Remedial Payment
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {!e.eligible && (
                 <div style={blockedBox}>
@@ -408,276 +642,40 @@ async function printCertificate(cert: CertificateRecord) {
       <head>
         <title>${escapeHtml(cert.certificateNo)}</title>
         <style>
-          @page {
-            size: A4 landscape;
-            margin: 0;
-          }
-
-          body {
-            margin: 0;
-            background: #f1f5f9;
-            font-family: Georgia, "Times New Roman", serif;
-            color: #111827;
-          }
-
-          .print-button {
-            position: fixed;
-            top: 14px;
-            right: 14px;
-            z-index: 20;
-            padding: 10px 16px;
-            font-weight: bold;
-            border: 0;
-            background: #166534;
-            color: #fff;
-            border-radius: 10px;
-            cursor: pointer;
-          }
-
-          .page {
-            width: 297mm;
-            height: 210mm;
-            margin: 0 auto;
-            background: #fff;
-            position: relative;
-            overflow: hidden;
-            box-sizing: border-box;
-            padding: 18mm;
-          }
-
-          .border {
-            border: 5px double #166534;
-            height: 100%;
-            box-sizing: border-box;
-            padding: 12mm;
-            position: relative;
-          }
-
-          .watermark {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.055;
-            z-index: 0;
-          }
-
-          .watermark img {
-            width: 380px;
-            height: 380px;
-            object-fit: contain;
-          }
-
-          .content {
-            position: relative;
-            z-index: 2;
-            text-align: center;
-          }
-
-          .logo {
-            width: 86px;
-            height: 86px;
-            object-fit: contain;
-            margin-bottom: 8px;
-          }
-
-          .org {
-            font-size: 26px;
-            font-weight: 900;
-            color: #052e16;
-            letter-spacing: 1px;
-          }
-
-          .subtitle {
-            font-size: 14px;
-            color: #475569;
-            margin-top: 4px;
-          }
-
-          .cert-title {
-            margin-top: 18px;
-            font-size: 42px;
-            font-weight: 900;
-            color: #166534;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-          }
-
-          .small-title {
-            margin-top: 6px;
-            font-size: 18px;
-            color: #334155;
-            letter-spacing: 1px;
-          }
-
-          .presented {
-            margin-top: 24px;
-            font-size: 17px;
-            color: #475569;
-          }
-
-          .student-name {
-            margin: 12px auto 8px;
-            font-size: 40px;
-            font-weight: 900;
-            color: #111827;
-            border-bottom: 2px solid #166534;
-            display: inline-block;
-            padding: 0 28px 8px;
-          }
-
-          .body-text {
-            margin: 18px auto 0;
-            max-width: 840px;
-            font-size: 18px;
-            line-height: 1.75;
-            color: #334155;
-          }
-
-          .program {
-            font-weight: 900;
-            color: #052e16;
-          }
-
-          .meta-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-            margin-top: 22px;
-            font-family: Arial, sans-serif;
-            text-align: left;
-          }
-
-          .meta-card {
-            border: 1px solid #bbf7d0;
-            background: #f0fdf4;
-            border-radius: 12px;
-            padding: 10px 12px;
-            font-size: 12px;
-          }
-
-          .meta-label {
-            color: #64748b;
-            font-weight: bold;
-            text-transform: uppercase;
-            font-size: 10px;
-          }
-
-          .meta-value {
-            margin-top: 4px;
-            color: #052e16;
-            font-weight: bold;
-            word-break: break-word;
-          }
-
-          .qr-section {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 14px;
-            margin-top: 20px;
-            font-family: Arial, sans-serif;
-          }
-
-          .qr-section img {
-            width: 92px;
-            height: 92px;
-            border: 1px solid #bbf7d0;
-            padding: 6px;
-            border-radius: 10px;
-            background: #fff;
-          }
-
-          .qr-text {
-            text-align: left;
-            max-width: 360px;
-            font-size: 12px;
-            color: #475569;
-            line-height: 1.5;
-          }
-
-          .qr-text strong {
-            color: #052e16;
-            display: block;
-            font-size: 13px;
-            margin-bottom: 4px;
-          }
-
-          .verify-url {
-            word-break: break-all;
-            font-size: 10px;
-            color: #64748b;
-            margin-top: 4px;
-          }
-
-          .signature-row {
-            display: grid;
-            grid-template-columns: 1fr 120px 1fr;
-            gap: 28px;
-            align-items: end;
-            margin-top: 24px;
-          }
-
-          .signature {
-            text-align: center;
-            font-family: Arial, sans-serif;
-            color: #0f172a;
-          }
-
-          .signature img {
-            height: 56px;
-            object-fit: contain;
-            margin-bottom: 4px;
-          }
-
-          .sig-line {
-            border-top: 2px solid #111827;
-            padding-top: 6px;
-            font-size: 13px;
-            font-weight: bold;
-          }
-
-          .seal img {
-            width: 110px;
-            height: 110px;
-            object-fit: contain;
-          }
-
-          .seal {
-            text-align: center;
-            color: #166534;
-            font-family: Arial, sans-serif;
-            font-size: 11px;
-            font-weight: bold;
-          }
-
-          .footer {
-            position: absolute;
-            bottom: 8mm;
-            left: 18mm;
-            right: 18mm;
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            font-size: 11px;
-            color: #64748b;
-            font-family: Arial, sans-serif;
-          }
-
-          @media print {
-            body {
-              background: #fff;
-            }
-
-            .print-button {
-              display: none;
-            }
-
-            .page {
-              margin: 0;
-            }
-          }
+          @page { size: A4 landscape; margin: 0; }
+          body { margin: 0; background: #f1f5f9; font-family: Georgia, "Times New Roman", serif; color: #111827; }
+          .print-button { position: fixed; top: 14px; right: 14px; z-index: 20; padding: 10px 16px; font-weight: bold; border: 0; background: #166534; color: #fff; border-radius: 10px; cursor: pointer; }
+          .page { width: 297mm; height: 210mm; margin: 0 auto; background: #fff; position: relative; overflow: hidden; box-sizing: border-box; padding: 18mm; }
+          .border { border: 5px double #166534; height: 100%; box-sizing: border-box; padding: 12mm; position: relative; }
+          .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.055; z-index: 0; }
+          .watermark img { width: 380px; height: 380px; object-fit: contain; }
+          .content { position: relative; z-index: 2; text-align: center; }
+          .logo { width: 86px; height: 86px; object-fit: contain; margin-bottom: 8px; }
+          .org { font-size: 26px; font-weight: 900; color: #052e16; letter-spacing: 1px; }
+          .subtitle { font-size: 14px; color: #475569; margin-top: 4px; }
+          .cert-title { margin-top: 18px; font-size: 42px; font-weight: 900; color: #166534; letter-spacing: 3px; text-transform: uppercase; }
+          .small-title { margin-top: 6px; font-size: 18px; color: #334155; letter-spacing: 1px; }
+          .presented { margin-top: 24px; font-size: 17px; color: #475569; }
+          .student-name { margin: 12px auto 8px; font-size: 40px; font-weight: 900; color: #111827; border-bottom: 2px solid #166534; display: inline-block; padding: 0 28px 8px; }
+          .body-text { margin: 18px auto 0; max-width: 840px; font-size: 18px; line-height: 1.75; color: #334155; }
+          .program { font-weight: 900; color: #052e16; }
+          .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; font-family: Arial, sans-serif; text-align: left; }
+          .meta-card { border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 12px; padding: 10px 12px; font-size: 12px; }
+          .meta-label { color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 10px; }
+          .meta-value { margin-top: 4px; color: #052e16; font-weight: bold; word-break: break-word; }
+          .qr-section { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 20px; font-family: Arial, sans-serif; }
+          .qr-section img { width: 92px; height: 92px; border: 1px solid #bbf7d0; padding: 6px; border-radius: 10px; background: #fff; }
+          .qr-text { text-align: left; max-width: 360px; font-size: 12px; color: #475569; line-height: 1.5; }
+          .qr-text strong { color: #052e16; display: block; font-size: 13px; margin-bottom: 4px; }
+          .verify-url { word-break: break-all; font-size: 10px; color: #64748b; margin-top: 4px; }
+          .signature-row { display: grid; grid-template-columns: 1fr 120px 1fr; gap: 28px; align-items: end; margin-top: 24px; }
+          .signature { text-align: center; font-family: Arial, sans-serif; color: #0f172a; }
+          .signature img { height: 56px; object-fit: contain; margin-bottom: 4px; }
+          .sig-line { border-top: 2px solid #111827; padding-top: 6px; font-size: 13px; font-weight: bold; }
+          .seal img { width: 110px; height: 110px; object-fit: contain; }
+          .seal { text-align: center; color: #166534; font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; }
+          .footer { position: absolute; bottom: 8mm; left: 18mm; right: 18mm; display: flex; justify-content: space-between; gap: 16px; font-size: 11px; color: #64748b; font-family: Arial, sans-serif; }
+          @media print { body { background: #fff; } .print-button { display: none; } .page { margin: 0; } }
         </style>
       </head>
 
@@ -686,21 +684,15 @@ async function printCertificate(cert: CertificateRecord) {
 
         <div class="page">
           <div class="border">
-            <div class="watermark">
-              <img src="/intizar-logo.jpg" />
-            </div>
+            <div class="watermark"><img src="/intizar-logo.jpg" /></div>
 
             <div class="content">
               <img class="logo" src="/intizar-logo.jpg" />
-
               <div class="org">INTIZAR Academy</div>
               <div class="subtitle">Official Learning Management System Certificate</div>
-
               <div class="cert-title">Certificate</div>
               <div class="small-title">of Completion</div>
-
               <div class="presented">This certificate is proudly presented to</div>
-
               <div class="student-name">${escapeHtml(cert.studentName)}</div>
 
               <div class="body-text">
@@ -711,35 +703,12 @@ async function printCertificate(cert: CertificateRecord) {
               </div>
 
               <div class="meta-grid">
-                <div class="meta-card">
-                  <div class="meta-label">Registration No</div>
-                  <div class="meta-value">${escapeHtml(cert.regNo || "-")}</div>
-                </div>
-
-                <div class="meta-card">
-                  <div class="meta-label">Certificate No</div>
-                  <div class="meta-value">${escapeHtml(cert.certificateNo)}</div>
-                </div>
-
-                <div class="meta-card">
-                  <div class="meta-label">Issued Date</div>
-                  <div class="meta-value">${escapeHtml(issuedDate)}</div>
-                </div>
-
-                <div class="meta-card">
-                  <div class="meta-label">Branch</div>
-                  <div class="meta-value">${escapeHtml(cert.branch || "-")}</div>
-                </div>
-
-                <div class="meta-card">
-                  <div class="meta-label">Zone</div>
-                  <div class="meta-value">${escapeHtml(cert.zone || "-")}</div>
-                </div>
-
-                <div class="meta-card">
-                  <div class="meta-label">Verification Token</div>
-                  <div class="meta-value">${escapeHtml(cert.verificationToken)}</div>
-                </div>
+                <div class="meta-card"><div class="meta-label">Registration No</div><div class="meta-value">${escapeHtml(cert.regNo || "-")}</div></div>
+                <div class="meta-card"><div class="meta-label">Certificate No</div><div class="meta-value">${escapeHtml(cert.certificateNo)}</div></div>
+                <div class="meta-card"><div class="meta-label">Issued Date</div><div class="meta-value">${escapeHtml(issuedDate)}</div></div>
+                <div class="meta-card"><div class="meta-label">Branch</div><div class="meta-value">${escapeHtml(cert.branch || "-")}</div></div>
+                <div class="meta-card"><div class="meta-label">Zone</div><div class="meta-value">${escapeHtml(cert.zone || "-")}</div></div>
+                <div class="meta-card"><div class="meta-label">Verification Token</div><div class="meta-value">${escapeHtml(cert.verificationToken)}</div></div>
               </div>
 
               <div class="qr-section">
@@ -816,94 +785,18 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
-const toolbar: CSSProperties = {
-  display:"grid",
-  gridTemplateColumns:"220px 1fr auto",
-  gap:12,
-  alignItems:"center",
-  marginTop:16,
-};
-
-const selectStyle: CSSProperties = {
-  padding:"12px 14px",
-  border:"1px solid "+C.border,
-  borderRadius:10,
-  background:"#fff",
-};
-
-const rulesBox: CSSProperties = {
-  border:"1px solid #bbf7d0",
-  background:"#f0fdf4",
-  borderRadius:14,
-  padding:14,
-  color:"#166534",
-  lineHeight:1.7,
-  fontSize:14,
-};
-
-const topRow: CSSProperties = {
-  display:"flex",
-  justifyContent:"space-between",
-  alignItems:"start",
-  gap:16,
-  flexWrap:"wrap",
-};
-
-const studentName: CSSProperties = {
-  margin:"0 0 5px",
-  color:C.text,
-  fontSize:22,
-  fontWeight:900,
-};
-
-const meta: CSSProperties = {
-  fontSize:13,
-  color:C.muted,
-  marginTop:4,
-};
-
-const grid: CSSProperties = {
-  display:"grid",
-  gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",
-  gap:12,
-  marginTop:16,
-};
-
-const infoCard: CSSProperties = {
-  border:"1px solid "+C.border,
-  borderRadius:14,
-  padding:14,
-  background:"#f8fafc",
-};
-
-const blockedBox: CSSProperties = {
-  border:"1px solid #fecaca",
-  background:"#fef2f2",
-  borderRadius:14,
-  padding:14,
-  marginTop:16,
-  color:"#991b1b",
-  lineHeight:1.6,
-};
-
-const certBox: CSSProperties = {
-  border:"1px solid #bbf7d0",
-  background:"#f0fdf4",
-  borderRadius:14,
-  padding:14,
-  marginTop:16,
-  color:"#166534",
-  lineHeight:1.6,
-};
-
-const emptyState: CSSProperties = {
-  minHeight:120,
-  display:"flex",
-  flexDirection:"column",
-  alignItems:"center",
-  justifyContent:"center",
-  textAlign:"center",
-  color:C.muted,
-};
+const toolbar: CSSProperties = {display:"grid",gridTemplateColumns:"240px 1fr auto",gap:12,alignItems:"center",marginTop:16};
+const selectStyle: CSSProperties = {padding:"12px 14px",border:"1px solid "+C.border,borderRadius:10,background:"#fff"};
+const rulesBox: CSSProperties = {border:"1px solid #bbf7d0",background:"#f0fdf4",borderRadius:14,padding:14,color:"#166534",lineHeight:1.7,fontSize:14};
+const topRow: CSSProperties = {display:"flex",justifyContent:"space-between",alignItems:"start",gap:16,flexWrap:"wrap"};
+const studentName: CSSProperties = {margin:"0 0 5px",color:C.text,fontSize:22,fontWeight:900};
+const meta: CSSProperties = {fontSize:13,color:C.muted,marginTop:4};
+const grid: CSSProperties = {display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,marginTop:16};
+const infoCard: CSSProperties = {border:"1px solid "+C.border,borderRadius:14,padding:14,background:"#f8fafc"};
+const blockedBox: CSSProperties = {border:"1px solid #fecaca",background:"#fef2f2",borderRadius:14,padding:14,marginTop:16,color:"#991b1b",lineHeight:1.6};
+const remedialBox: CSSProperties = {border:"1px solid #fde68a",background:"#fffbeb",borderRadius:14,padding:14,marginTop:16,color:"#92400e",lineHeight:1.6};
+const refresherBox: CSSProperties = {border:"1px solid #fed7aa",background:"#fff7ed",borderRadius:14,padding:14,marginTop:16,color:"#9a3412",lineHeight:1.6};
+const certBox: CSSProperties = {border:"1px solid #bbf7d0",background:"#f0fdf4",borderRadius:14,padding:14,marginTop:16,color:"#166534",lineHeight:1.6};
+const emptyState: CSSProperties = {minHeight:120,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",color:C.muted};
 
 
