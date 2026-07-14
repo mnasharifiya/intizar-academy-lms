@@ -1,13 +1,16 @@
-﻿import { useEffect, useState, type CSSProperties } from "react";
+﻿import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { Button, Card, Input } from "../../components/common/ui";
-import { C, APP_NAME } from "../../lib/theme";
+import { APP_NAME, C } from "../../lib/theme";
 import {
   listApplicationPrograms,
   submitApplication,
   submitPaymentProof,
-  type ApplicationProgram,
-  type ApplicationRecord,
 } from "../../lib/applicationApi";
+import {
+  DEFAULT_SETTINGS,
+  loadAppSettings,
+  type AppSettings,
+} from "../../lib/settingsApi";
 
 const emptyForm = {
   fullName: "",
@@ -22,110 +25,126 @@ const emptyForm = {
 
 const emptyProof = {
   applicationNo: "",
-  email: "",
+  paymentReference: "",
   payerName: "",
   bankName: "",
   transactionReference: "",
   paymentProof: "",
 };
 
-export default function ApplicationForm({
-  onBackToLogin,
-}: {
-  onBackToLogin: () => void;
-}) {
-  const [programs, setPrograms] = useState<ApplicationProgram[]>([]);
+export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () => void }) {
+  const [mode, setMode] = useState<"apply" | "proof">("apply");
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [form, setForm] = useState(emptyForm);
   const [proof, setProof] = useState(emptyProof);
-  const [submitted, setSubmitted] = useState<ApplicationRecord | null>(null);
+  const [submitted, setSubmitted] = useState<any>(null);
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"apply" | "proof">("apply");
 
-  useEffect(() => {
-    listApplicationPrograms()
-      .then(setPrograms)
-      .catch(err => alert(err?.message || "Could not load programs."));
-  }, []);
-
-  function readPhoto(file?: File) {
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = e => {
-      setForm(f => ({ ...f, photo: String(e.target?.result || "") }));
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function readProof(file?: File) {
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = e => {
-      setProof(f => ({ ...f, paymentProof: String(e.target?.result || "") }));
-    };
-    reader.readAsDataURL(file);
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (
-      !form.fullName ||
-      !form.email ||
-      !form.phoneNo ||
-      !form.photo ||
-      !form.zone ||
-      !form.branch ||
-      !form.workInBranch ||
-      !form.programId
-    ) {
-      alert("All application fields are required.");
-      return;
-    }
-
-    const program = programs.find(p => p.id === form.programId);
-    if (!program) {
-      alert("Please select a valid program.");
-      return;
-    }
-
+  async function refresh() {
     try {
-      setBusy(true);
+      const [programList, appSettings] = await Promise.all([
+        listApplicationPrograms(),
+        loadAppSettings().catch(() => DEFAULT_SETTINGS),
+      ]);
 
-      const app = await submitApplication({
-        ...form,
-        programName: program.name,
-      });
-
-      setSubmitted(app);
-      setForm(emptyForm);
+      setPrograms(programList ?? []);
+      setSettings(appSettings);
     } catch (err: any) {
       console.error(err);
-      alert(err?.message || "Application failed.");
+      alert(err?.message || "Could not load application form.");
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  function updateForm(key: keyof typeof emptyForm, value: string) {
+    setForm(prev => ({ ...prev, [key]: value }));
+  }
+
+  function updateProof(key: keyof typeof emptyProof, value: string) {
+    setProof(prev => ({ ...prev, [key]: value }));
+  }
+
+  async function readImage(file: File | null, callback: (value: string) => void) {
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      callback(String(reader.result || ""));
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  function validateApplication() {
+    if (!form.fullName.trim()) return "Full name is required.";
+    if (!form.email.trim()) return "Email is required.";
+    if (!form.phoneNo.trim()) return "Phone number is required.";
+    if (!form.photo) return "Photo is required.";
+    if (!form.zone.trim()) return "Zone is required.";
+    if (!form.branch.trim()) return "Branch is required.";
+    if (!form.workInBranch.trim()) return "Work in branch is required.";
+    if (!form.programId) return "Program is required.";
+
+    return "";
+  }
+
+  async function submitNewApplication(e: FormEvent) {
+    e.preventDefault();
+
+    const problem = validateApplication();
+
+    if (problem) {
+      alert(problem);
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const result = await submitApplication({
+        ...form,
+        applicationFee: Number(settings.applicationFee || 0),
+      } as any);
+
+      setSubmitted(result);
+      alert("Application submitted successfully. Please pay and submit your payment proof.");
+      setMode("proof");
+
+      setProof(prev => ({
+        ...prev,
+        applicationNo: result?.applicationNo || "",
+        paymentReference: result?.paymentReference || "",
+      }));
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || "Could not submit application.");
     } finally {
       setBusy(false);
     }
   }
 
-  async function submitProof(e: React.FormEvent) {
+  async function submitProofForm(e: FormEvent) {
     e.preventDefault();
 
-    if (
-      !proof.applicationNo ||
-      !proof.email ||
-      !proof.payerName ||
-      !proof.bankName ||
-      !proof.transactionReference ||
-      !proof.paymentProof
-    ) {
-      alert("All payment proof fields are required.");
+    if (!proof.applicationNo.trim() && !proof.paymentReference.trim()) {
+      alert("Application number or payment reference is required.");
       return;
     }
 
+    if (!proof.paymentProof) {
+      alert("Payment proof image is required.");
+      return;
+    }
+
+    setBusy(true);
+
     try {
-      setBusy(true);
-      await submitPaymentProof(proof);
+      await submitPaymentProof(proof as any);
       setProof(emptyProof);
       alert("Payment proof submitted. Main Admin will verify it.");
     } catch (err: any) {
@@ -140,93 +159,117 @@ export default function ApplicationForm({
     <div style={page}>
       <div style={hero}>
         <img src="/intizar-logo.jpg" alt="INTIZAR" style={logo} />
+
         <h1 style={title}>{APP_NAME} Application</h1>
+
         <p style={sub}>
           Apply for a program, generate your payment reference, and submit your payment proof.
         </p>
 
-        <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:18}}>
+        <div style={tabs}>
           <Button variant={mode === "apply" ? undefined : "secondary"} onClick={() => setMode("apply")}>
             New Application
           </Button>
+
           <Button variant={mode === "proof" ? undefined : "secondary"} onClick={() => setMode("proof")}>
             Submit Payment Proof
           </Button>
-          <Button variant="secondary" onClick={onBackToLogin}>
-            Back to Login
-          </Button>
+
+          {onBackToLogin && (
+            <Button variant="secondary" onClick={onBackToLogin}>
+              Back to Login
+            </Button>
+          )}
         </div>
       </div>
 
-      <div style={content}>
+      <div style={container}>
+        <PaymentDetails settings={settings} />
+
         {submitted && (
           <Card>
             <h2 style={sectionTitle}>Application Submitted</h2>
-            <p style={sectionSub}>Save these details carefully.</p>
 
-            <div style={successGrid}>
-              <Info label="Application No" value={submitted.applicationNo} />
-              <Info label="Payment Reference" value={submitted.paymentReference} />
-              <Info label="Amount" value={"₦" + submitted.applicationFee.toLocaleString()} />
-              <Info label="Suggested Reg No" value={submitted.suggestedRegNo || "-"} />
+            <p style={sectionSub}>
+              Keep these details safely. You will use them when submitting payment proof.
+            </p>
+
+            <div style={infoGrid}>
+              <Info label="Application Number" value={submitted?.applicationNo || "-"} />
+              <Info label="Payment Reference" value={submitted?.paymentReference || "-"} />
+              <Info label="Application Fee" value={"₦" + Number(settings.applicationFee || 0).toLocaleString()} />
             </div>
-
-            <div style={payBox}>
-              <strong>Payment Instruction</strong>
-              <p>
-                Pay ₦{submitted.applicationFee.toLocaleString()} to the official INTIZAR bank account.
-                Use the payment reference above as your payment narration/reference.
-              </p>
-              <p style={{color:"#92400e",fontWeight:800}}>
-                Bank account details should be given by INTIZAR management.
-              </p>
-            </div>
-
-            <Button onClick={() => {
-              setMode("proof");
-              setProof(p => ({
-                ...p,
-                applicationNo: submitted.applicationNo,
-                email: submitted.email,
-              }));
-            }}>
-              Submit Payment Proof
-            </Button>
           </Card>
         )}
 
-        {mode === "apply" && !submitted && (
+        {mode === "apply" && (
           <Card>
-            <h2 style={sectionTitle}>Application Form</h2>
-            <p style={sectionSub}>All fields are required.</p>
+            <h2 style={sectionTitle}>New Application Form</h2>
 
-            <form onSubmit={submit} style={formGrid}>
-              <Input value={form.fullName} onChange={v => setForm(f => ({...f,fullName:v}))} placeholder="Full name" />
-              <Input value={form.email} onChange={v => setForm(f => ({...f,email:v}))} placeholder="Email" type="email" />
-              <Input value={form.phoneNo} onChange={v => setForm(f => ({...f,phoneNo:v}))} placeholder="Phone number" />
+            <p style={sectionSub}>
+              Fill all required information correctly. Main Admin can later approve and create your student account.
+            </p>
 
-              <label style={label}>Photo</label>
-              <input type="file" accept="image/*" onChange={e => readPhoto(e.target.files?.[0])} style={fileInput} />
-              {form.photo && <img src={form.photo} alt="Preview" style={preview} />}
+            <form onSubmit={submitNewApplication} style={formGrid}>
+              <Field label="Full Name">
+                <Input value={form.fullName} onChange={(e: any) => updateForm("fullName", e.target.value)} />
+              </Field>
 
-              <Input value={form.zone} onChange={v => setForm(f => ({...f,zone:v}))} placeholder="Zone" />
-              <Input value={form.branch} onChange={v => setForm(f => ({...f,branch:v}))} placeholder="Branch" />
-              <Input value={form.workInBranch} onChange={v => setForm(f => ({...f,workInBranch:v}))} placeholder="Work in branch" />
+              <Field label="Email">
+                <Input type="email" value={form.email} onChange={(e: any) => updateForm("email", e.target.value)} />
+              </Field>
 
-              <select
-                value={form.programId}
-                onChange={e => setForm(f => ({...f,programId:e.target.value}))}
-                style={selectStyle}
-              >
-                <option value="">Program you are applying for</option>
-                {programs.map(program => (
-                  <option key={program.id} value={program.id}>{program.name}</option>
-                ))}
-              </select>
+              <Field label="Phone Number">
+                <Input value={form.phoneNo} onChange={(e: any) => updateForm("phoneNo", e.target.value)} />
+              </Field>
 
-              <Button type="submit" disabled={busy}>
-                {busy ? "Submitting..." : "Submit Application"}
-              </Button>
+              <Field label="Zone">
+                <Input value={form.zone} onChange={(e: any) => updateForm("zone", e.target.value)} />
+              </Field>
+
+              <Field label="Branch">
+                <Input value={form.branch} onChange={(e: any) => updateForm("branch", e.target.value)} />
+              </Field>
+
+              <Field label="Work in Branch">
+                <Input
+                  value={form.workInBranch}
+                  onChange={(e: any) => updateForm("workInBranch", e.target.value)}
+                  placeholder="Example: Secretary, member, youth section, etc."
+                />
+              </Field>
+
+              <Field label="Program Applying For">
+                <select
+                  style={selectStyle}
+                  value={form.programId}
+                  onChange={(e) => updateForm("programId", e.target.value)}
+                >
+                  <option value="">Select program</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Applicant Photo">
+                <input
+                  style={fileInput}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => readImage(e.target.files?.[0] || null, value => updateForm("photo", value))}
+                />
+
+                {form.photo && <img src={form.photo} alt="Applicant" style={preview} />}
+              </Field>
+
+              <div style={fullWidth}>
+                <Button type="submit" disabled={busy}>
+                  {busy ? "Submitting..." : "Submit Application"}
+                </Button>
+              </div>
             </form>
           </Card>
         )}
@@ -234,21 +277,60 @@ export default function ApplicationForm({
         {mode === "proof" && (
           <Card>
             <h2 style={sectionTitle}>Submit Payment Proof</h2>
-            <p style={sectionSub}>Submit your bank payment evidence for Main Admin verification.</p>
 
-            <form onSubmit={submitProof} style={formGrid}>
-              <Input value={proof.applicationNo} onChange={v => setProof(f => ({...f,applicationNo:v}))} placeholder="Application No" />
-              <Input value={proof.email} onChange={v => setProof(f => ({...f,email:v}))} placeholder="Application email" type="email" />
-              <Input value={proof.payerName} onChange={v => setProof(f => ({...f,payerName:v}))} placeholder="Payer name" />
-              <Input value={proof.bankName} onChange={v => setProof(f => ({...f,bankName:v}))} placeholder="Bank name" />
-              <Input value={proof.transactionReference} onChange={v => setProof(f => ({...f,transactionReference:v}))} placeholder="Transaction/reference number" />
+            <p style={sectionSub}>
+              After bank transfer, upload your payment proof. Main Admin will verify it before approval.
+            </p>
 
-              <label style={label}>Upload receipt/proof</label>
-              <input type="file" accept="image/*,.pdf" onChange={e => readProof(e.target.files?.[0])} style={fileInput} />
+            <form onSubmit={submitProofForm} style={formGrid}>
+              <Field label="Application Number">
+                <Input
+                  value={proof.applicationNo}
+                  onChange={(e: any) => updateProof("applicationNo", e.target.value)}
+                  placeholder="Example: APP-..."
+                />
+              </Field>
 
-              <Button type="submit" disabled={busy}>
-                {busy ? "Submitting..." : "Submit Payment Proof"}
-              </Button>
+              <Field label="Payment Reference">
+                <Input
+                  value={proof.paymentReference}
+                  onChange={(e: any) => updateProof("paymentReference", e.target.value)}
+                  placeholder="Example: PAY-..."
+                />
+              </Field>
+
+              <Field label="Payer Name">
+                <Input value={proof.payerName} onChange={(e: any) => updateProof("payerName", e.target.value)} />
+              </Field>
+
+              <Field label="Bank Name Used">
+                <Input value={proof.bankName} onChange={(e: any) => updateProof("bankName", e.target.value)} />
+              </Field>
+
+              <Field label="Transaction Reference">
+                <Input
+                  value={proof.transactionReference}
+                  onChange={(e: any) => updateProof("transactionReference", e.target.value)}
+                  placeholder="Bank transfer reference"
+                />
+              </Field>
+
+              <Field label="Payment Proof Image">
+                <input
+                  style={fileInput}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => readImage(e.target.files?.[0] || null, value => updateProof("paymentProof", value))}
+                />
+
+                {proof.paymentProof && <img src={proof.paymentProof} alt="Payment Proof" style={preview} />}
+              </Field>
+
+              <div style={fullWidth}>
+                <Button type="submit" disabled={busy}>
+                  {busy ? "Submitting..." : "Submit Payment Proof"}
+                </Button>
+              </div>
             </form>
           </Card>
         )}
@@ -257,120 +339,190 @@ export default function ApplicationForm({
   );
 }
 
+function PaymentDetails({ settings }: { settings: AppSettings }) {
+  return (
+    <Card>
+      <div style={paymentBox}>
+        <h2 style={{ margin: "0 0 8px", color: "#14532d", fontSize: 20, fontWeight: 900 }}>
+          Official Payment Details
+        </h2>
+
+        <p style={{ margin: "0 0 14px", color: "#166534", lineHeight: 1.7 }}>
+          Application Fee: <strong>₦{Number(settings.applicationFee || 0).toLocaleString()}</strong>
+        </p>
+
+        <div style={infoGrid}>
+          <Info label="Bank Name" value={settings.bankName || "Not set yet"} />
+          <Info label="Account Name" value={settings.accountName || "Not set yet"} />
+          <Info label="Account Number" value={settings.accountNumber || "Not set yet"} />
+        </div>
+
+        <p style={{ margin: "14px 0 0", color: "#166534", lineHeight: 1.7 }}>
+          {settings.paymentInstructions}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: any;
+}) {
+  return (
+    <label style={field}>
+      <span style={labelStyle}>{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div style={infoCard}>
-      <div style={{fontSize:12,color:C.muted,fontWeight:900}}>{label}</div>
-      <div style={{fontSize:17,color:C.text,fontWeight:900,marginTop:5}}>{value}</div>
+      <div style={{ fontSize: 12, color: C.muted, fontWeight: 900 }}>{label}</div>
+      <div style={{ fontSize: 17, color: C.text, fontWeight: 900, marginTop: 5 }}>{value}</div>
     </div>
   );
 }
 
 const page: CSSProperties = {
-  minHeight:"100vh",
-  background:"#f8fafc",
+  minHeight: "100vh",
+  background: "#f8fafc",
 };
 
 const hero: CSSProperties = {
-  background:"linear-gradient(135deg,#052e16,#166534)",
-  color:"#fff",
-  padding:32,
+  background: "linear-gradient(135deg,#052e16,#166534)",
+  color: "#fff",
+  padding: "38px 20px",
+  textAlign: "center",
 };
 
 const logo: CSSProperties = {
-  width:72,
-  height:72,
-  borderRadius:18,
-  background:"#fff",
-  padding:6,
-  objectFit:"contain",
+  width: 86,
+  height: 86,
+  objectFit: "contain",
+  borderRadius: 20,
+  background: "#fff",
+  padding: 8,
+  marginBottom: 14,
 };
 
 const title: CSSProperties = {
-  margin:"18px 0 8px",
-  fontSize:34,
-  fontWeight:900,
+  margin: 0,
+  fontSize: 36,
+  fontWeight: 900,
 };
 
 const sub: CSSProperties = {
-  margin:0,
-  maxWidth:760,
-  color:"rgba(255,255,255,.8)",
-  lineHeight:1.7,
+  margin: "10px auto 0",
+  maxWidth: 720,
+  color: "rgba(255,255,255,.82)",
+  lineHeight: 1.7,
 };
 
-const content: CSSProperties = {
-  maxWidth:900,
-  margin:"-18px auto 40px",
-  padding:"0 20px",
+const tabs: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  justifyContent: "center",
+  flexWrap: "wrap",
+  marginTop: 20,
+};
+
+const container: CSSProperties = {
+  maxWidth: 980,
+  margin: "0 auto",
+  padding: 22,
+  display: "grid",
+  gap: 18,
 };
 
 const sectionTitle: CSSProperties = {
-  margin:0,
-  fontSize:22,
-  color:C.text,
-  fontWeight:900,
+  margin: 0,
+  color: C.text,
+  fontSize: 22,
+  fontWeight: 900,
 };
 
 const sectionSub: CSSProperties = {
-  margin:"6px 0 18px",
-  color:C.muted,
-  fontSize:14,
+  margin: "7px 0 0",
+  color: C.muted,
+  fontSize: 14,
+  lineHeight: 1.7,
 };
 
 const formGrid: CSSProperties = {
-  display:"grid",
-  gap:12,
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+  gap: 14,
+  marginTop: 18,
 };
 
-const label: CSSProperties = {
-  fontSize:13,
-  fontWeight:900,
-  color:C.text,
+const fullWidth: CSSProperties = {
+  gridColumn: "1 / -1",
+  display: "flex",
+  justifyContent: "flex-end",
 };
 
-const fileInput: CSSProperties = {
-  border:"1px solid "+C.border,
-  borderRadius:10,
-  padding:12,
-  background:"#fff",
+const field: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 7,
 };
 
-const preview: CSSProperties = {
-  width:90,
-  height:90,
-  borderRadius:14,
-  objectFit:"cover",
+const labelStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 900,
+  color: C.text,
 };
 
 const selectStyle: CSSProperties = {
-  padding:"12px 14px",
-  border:"1px solid "+C.border,
-  borderRadius:10,
-  background:"#fff",
+  width: "100%",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  padding: "12px 14px",
+  outline: "none",
+  background: "#fff",
+  fontSize: 14,
 };
 
-const successGrid: CSSProperties = {
-  display:"grid",
-  gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",
-  gap:12,
-  margin:"18px 0",
+const fileInput: CSSProperties = {
+  width: "100%",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  padding: "11px 12px",
+  background: "#fff",
+};
+
+const preview: CSSProperties = {
+  marginTop: 8,
+  width: 120,
+  height: 120,
+  borderRadius: 14,
+  objectFit: "cover",
+  border: "1px solid #e2e8f0",
+};
+
+const paymentBox: CSSProperties = {
+  padding: 16,
+  borderRadius: 16,
+  border: "1px solid #dcfce7",
+  background: "#f0fdf4",
+};
+
+const infoGrid: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+  gap: 10,
 };
 
 const infoCard: CSSProperties = {
-  border:"1px solid "+C.border,
-  borderRadius:14,
-  padding:14,
-  background:"#f8fafc",
-};
-
-const payBox: CSSProperties = {
-  border:"1px solid #fde68a",
-  background:"#fffbeb",
-  borderRadius:14,
-  padding:14,
-  marginBottom:16,
-  color:C.text,
-  lineHeight:1.7,
+  background: "#fff",
+  border: "1px solid #dcfce7",
+  borderRadius: 14,
+  padding: 12,
 };
 

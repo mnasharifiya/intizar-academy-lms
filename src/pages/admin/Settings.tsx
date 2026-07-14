@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, type CSSProperties } from "react";
-import { PageHeader, Card, Button, Input } from "../../components/common/ui";
+import { PageHeader, Card, Button } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import {
   DEFAULT_SETTINGS,
@@ -57,6 +57,7 @@ export default function AdminSettings({
     try {
       await saveAppSettings(settings);
       alert("Settings saved successfully.");
+      await refresh();
     } catch (err: any) {
       alert(err?.message || "Could not save settings.");
     } finally {
@@ -98,16 +99,16 @@ export default function AdminSettings({
 
           <div style={formGrid}>
             <Field label="Organization Name">
-              <Input
+              <TextInput
                 value={settings.organizationName}
-                onChange={(e: any) => update("organizationName", e.target.value)}
+                onChange={(value) => update("organizationName", value)}
               />
             </Field>
 
             <Field label="Application Fee ₦">
-              <Input
+              <TextInput
                 value={settings.applicationFee}
-                onChange={(e: any) => update("applicationFee", e.target.value)}
+                onChange={(value) => update("applicationFee", value)}
                 placeholder="1500"
               />
             </Field>
@@ -120,25 +121,25 @@ export default function AdminSettings({
 
           <div style={formGrid}>
             <Field label="Bank Name">
-              <Input
+              <TextInput
                 value={settings.bankName}
-                onChange={(e: any) => update("bankName", e.target.value)}
+                onChange={(value) => update("bankName", value)}
                 placeholder="Example: Jaiz Bank"
               />
             </Field>
 
             <Field label="Account Name">
-              <Input
+              <TextInput
                 value={settings.accountName}
-                onChange={(e: any) => update("accountName", e.target.value)}
+                onChange={(value) => update("accountName", value)}
                 placeholder="INTIZAR official account name"
               />
             </Field>
 
             <Field label="Account Number">
-              <Input
+              <TextInput
                 value={settings.accountNumber}
-                onChange={(e: any) => update("accountNumber", e.target.value)}
+                onChange={(value) => update("accountNumber", value)}
                 placeholder="0000000000"
               />
             </Field>
@@ -176,25 +177,25 @@ export default function AdminSettings({
 
           <div style={formGrid}>
             <Field label="Secretary Signature URL">
-              <Input
+              <TextInput
                 value={settings.secretarySignatureUrl}
-                onChange={(e: any) => update("secretarySignatureUrl", e.target.value)}
+                onChange={(value) => update("secretarySignatureUrl", value)}
               />
               <PreviewImage src={settings.secretarySignatureUrl} />
             </Field>
 
             <Field label="Director / Coordinator Signature URL">
-              <Input
+              <TextInput
                 value={settings.directorSignatureUrl}
-                onChange={(e: any) => update("directorSignatureUrl", e.target.value)}
+                onChange={(value) => update("directorSignatureUrl", value)}
               />
               <PreviewImage src={settings.directorSignatureUrl} />
             </Field>
 
             <Field label="Seal / Stamp URL">
-              <Input
+              <TextInput
                 value={settings.sealUrl}
-                onChange={(e: any) => update("sealUrl", e.target.value)}
+                onChange={(value) => update("sealUrl", value)}
               />
               <PreviewImage src={settings.sealUrl} />
             </Field>
@@ -221,6 +222,25 @@ export default function AdminSettings({
         </Button>
       </div>
     </div>
+  );
+}
+
+function TextInput({
+  value,
+  onChange,
+  placeholder = "",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      style={inputStyle}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+    />
   );
 }
 
@@ -293,6 +313,17 @@ const labelStyle: CSSProperties = {
   color:C.text,
 };
 
+const inputStyle: CSSProperties = {
+  width:"100%",
+  border:"1px solid #e2e8f0",
+  borderRadius:12,
+  padding:"12px 14px",
+  fontSize:14,
+  outline:"none",
+  background:"#fff",
+  color:C.text,
+};
+
 const textarea: CSSProperties = {
   width:"100%",
   border:"1px solid #e2e8f0",
@@ -302,6 +333,8 @@ const textarea: CSSProperties = {
   outline:"none",
   resize:"vertical",
   fontFamily:"inherit",
+  background:"#fff",
+  color:C.text,
 };
 
 const footer: CSSProperties = {
