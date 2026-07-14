@@ -47,6 +47,7 @@ export default function AdminCertificates({
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+  const [settingsView, setSettingsView] = useState<AppSettings>(DEFAULT_SETTINGS);
 
   const students = users.filter((u: any) => u.role === "student");
 
@@ -65,7 +66,7 @@ export default function AdminCertificates({
   }
 
   useEffect(() => {
-    loadAppSettings().then((loaded) => { CERTIFICATE_SETTINGS = loaded; }).catch(() => { CERTIFICATE_SETTINGS = DEFAULT_SETTINGS; });
+    loadAppSettings().then((loaded) => { CERTIFICATE_SETTINGS = loaded; setSettingsView(loaded); }).catch(() => { CERTIFICATE_SETTINGS = DEFAULT_SETTINGS; setSettingsView(DEFAULT_SETTINGS); });
     refresh().catch(err => alert(err?.message || "Could not load certificates."));
   }, []);
 
@@ -444,6 +445,28 @@ export default function AdminCertificates({
         title="Certificates"
         sub="Generate official INTIZAR certificates only for eligible students."
       />
+      <Card>
+        <h2 style={{margin:0,fontSize:20,fontWeight:900,color:C.text}}>Remedial Rule From Settings</h2>
+
+        <p style={{margin:"8px 0 0",color:C.muted,lineHeight:1.7}}>
+          {settingsView.remedialRuleNote}
+        </p>
+
+        <div style={{
+          marginTop:14,
+          padding:14,
+          borderRadius:14,
+          border:"1px solid #dcfce7",
+          background:"#f0fdf4",
+          display:"grid",
+          gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",
+          gap:10
+        }}>
+          <div><strong>Bank:</strong> {settingsView.bankName || "Not set yet"}</div>
+          <div><strong>Account Name:</strong> {settingsView.accountName || "Not set yet"}</div>
+          <div><strong>Account Number:</strong> {settingsView.accountNumber || "Not set yet"}</div>
+        </div>
+      </Card>
 
       <Card>
         <div style={rulesBox}>
@@ -802,6 +825,9 @@ const remedialBox: CSSProperties = {border:"1px solid #fde68a",background:"#fffb
 const refresherBox: CSSProperties = {border:"1px solid #fed7aa",background:"#fff7ed",borderRadius:14,padding:14,marginTop:16,color:"#9a3412",lineHeight:1.6};
 const certBox: CSSProperties = {border:"1px solid #bbf7d0",background:"#f0fdf4",borderRadius:14,padding:14,marginTop:16,color:"#166534",lineHeight:1.6};
 const emptyState: CSSProperties = {minHeight:120,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",color:C.muted};
+
+
+
 
 
 

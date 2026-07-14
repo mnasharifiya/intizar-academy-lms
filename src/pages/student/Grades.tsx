@@ -8,6 +8,8 @@ import {
   type StudentCourseResult,
 } from "../../lib/scoreApi";
 import { loadAssessmentSchemes, type AssessmentScheme } from "../../lib/assessmentApi";
+import { DEFAULT_SETTINGS, loadAppSettings, type AppSettings } from "../../lib/settingsApi";
+import { loadRemedialPayments, type RemedialPayment } from "../../lib/remedialApi";
 
 export default function StudentGrades({
   user,
@@ -21,21 +23,27 @@ export default function StudentGrades({
   const [scores, setScores] = useState<AssessmentScore[]>([]);
   const [results, setResults] = useState<StudentCourseResult[]>([]);
   const [schemes, setSchemes] = useState<AssessmentScheme[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [remedialPayments, setRemedialPayments] = useState<RemedialPayment[]>([]);
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
     setBusy(true);
 
     try {
-      const [scoreList, resultList, schemeList] = await Promise.all([
+      const [scoreList, resultList, schemeList, remedialList, appSettings] = await Promise.all([
         loadAssessmentScores(),
         loadCourseResults(),
         loadAssessmentSchemes(),
+        loadRemedialPayments().catch(() => []),
+        loadAppSettings().catch(() => DEFAULT_SETTINGS),
       ]);
 
       setScores(scoreList.filter(score => score.studentId === user.id));
       setResults(resultList.filter(result => result.studentId === user.id));
       setSchemes(schemeList);
+      setRemedialPayments(remedialList.filter(payment => payment.studentId === user.id));
+      setSettings(appSettings);
     } catch (err: any) {
       alert(err?.message || "Could not load grades.");
     } finally {
@@ -188,6 +196,57 @@ export default function StudentGrades({
           </Button>
         </div>
       </Card>
+
+      {remedialPayments.length > 0 && (
+        <Card>
+          <h2 style={sectionTitle}>Remedial Payment Information</h2>
+          <p style={sectionSub}>
+            {settings.remedialRuleNote}
+          </p>
+
+          <div style={paymentBox}>
+            <h3 style={{margin:"0 0 8px",color:"#14532d",fontSize:18,fontWeight:900}}>
+              Official Payment Details
+            </h3>
+
+            <div style={miniGrid}>
+              <Info label="Bank Name" value={settings.bankName || "Not set yet"} />
+              <Info label="Account Name" value={settings.accountName || "Not set yet"} />
+              <Info label="Account Number" value={settings.accountNumber || "Not set yet"} />
+            </div>
+
+            <p style={{margin:"12px 0 0",color:"#166534",lineHeight:1.7}}>
+              {settings.paymentInstructions}
+            </p>
+          </div>
+
+          <div style={{overflowX:"auto",marginTop:16}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead>
+                <tr style={{background:"#f8fafc",textAlign:"left"}}>
+                  <th style={th}>Payment Reference</th>
+                  <th style={th}>Failed Courses</th>
+                  <th style={th}>Amount</th>
+                  <th style={th}>Status</th>
+                  <th style={th}>Created</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {remedialPayments.map(payment => (
+                  <tr key={payment.id} style={{borderBottom:"1px solid #e2e8f0"}}>
+                    <td style={td}>{payment.paymentReference}</td>
+                    <td style={td}>{payment.failedCourseCount}</td>
+                    <td style={td}>₦{Number(payment.amount || 0).toLocaleString()}</td>
+                    <td style={td}><StatusBadge status={payment.status} /></td>
+                    <td style={td}>{payment.createdAt ? new Date(payment.createdAt).toLocaleString() : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {courseCards.map(card => (
         <Card key={card.courseId}>
@@ -408,6 +467,14 @@ const miniGrid: CSSProperties = {
   marginTop:16,
 };
 
+const paymentBox: CSSProperties = {
+  marginTop:16,
+  padding:16,
+  borderRadius:16,
+  border:"1px solid #dcfce7",
+  background:"#f0fdf4",
+};
+
 const infoCard: CSSProperties = {
   border:"1px solid "+C.border,
   borderRadius:14,
@@ -452,3 +519,4 @@ const emptyState: CSSProperties = {
   textAlign:"center",
   color:C.muted,
 };
+
