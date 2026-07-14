@@ -186,7 +186,7 @@ export default function GroupsPage({ user, data, setData }: { user?: any; data: 
       await refreshFromSupabase();
 
       if (assigned === 0) {
-        alert("No students assigned. Make sure groups are active and students have the same level as the group.");
+        alert("No students assigned. Make sure groups are active and students have the same program as the group.");
       } else {
         alert(assigned + " student(s) assigned.");
       }
@@ -395,7 +395,7 @@ export default function GroupsPage({ user, data, setData }: { user?: any; data: 
               color:C.muted,
               lineHeight:1.7,
             }}>
-              <div><strong style={{color:C.text}}>Level students:</strong> {studentsInLevel(studentModal).length}</div>
+              <div><strong style={{color:C.text}}>Program students:</strong> {studentsInLevel(studentModal).length}</div>
               <div><strong style={{color:C.text}}>Members here:</strong> {groupMembers(studentModal).length}</div>
               <div><strong style={{color:C.text}}>Available:</strong> {availableStudents(studentModal).length}</div>
               <div><strong style={{color:C.text}}>Already assigned elsewhere:</strong> {assignedElsewhereStudents(studentModal).length}</div>

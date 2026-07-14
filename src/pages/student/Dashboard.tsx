@@ -52,14 +52,14 @@ export default function StudentDashboard({
           <div>
             <div style={{fontWeight:900,fontSize:16}}>{user.name}</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,.78)"}}>
-              {myLevel?.name || "No level assigned"}
+              {myLevel?.name || "No program assigned"}
             </div>
           </div>
         </div>
       </div>
 
       <div style={statsGrid}>
-        <StatCard label="My Level" value={myLevel?.name || "Not assigned"} sub={myLevel?.category || "Level information"} />
+        <StatCard label="My Program" value={myLevel?.name || "Not assigned"} sub={myLevel?.category || "Level information"} />
         <StatCard label="My Group" value={myGroup?.name || "Not assigned"} sub={myGroup ? "Active learning group" : "Ask admin to assign you"} />
         <StatCard label="My Courses" value={String(myCourses.length)} sub="Courses assigned to your level" />
         <StatCard label="Classmates" value={String(classmates.length)} sub="Students in your group" />

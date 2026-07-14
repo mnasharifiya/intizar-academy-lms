@@ -132,7 +132,7 @@ export default function CoursesPage({ data, setData }: { data: any; setData: any
               </div>
 
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,margin:"16px 0"}}>
-                <MiniStat label="Levels" value={stats.levelCount} />
+                <MiniStat label="Programs" value={stats.levelCount} />
                 <MiniStat label="Students" value={stats.studentCount} />
                 <MiniStat label="Instructors" value={stats.instructorCount} />
               </div>
