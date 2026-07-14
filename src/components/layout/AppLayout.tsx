@@ -12,6 +12,7 @@ import {
   ClipboardList,
   CalendarCheck,
   Award,
+  Settings,
 } from "lucide-react";
 
 const adminNav = [
@@ -23,6 +24,7 @@ const adminNav = [
   { id: "assessment", label: "Assessment Scheme", icon: Users },
     { id: "certificates", label: "Certificates", icon: Users },
     { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "settings", label: "Settings", icon: Settings },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "chat", label: "Group Chat", icon: MessageCircle },
 ];
@@ -207,6 +209,9 @@ export default function AppLayout({
     </div>
   );
 }
+
+
+
 
 
 

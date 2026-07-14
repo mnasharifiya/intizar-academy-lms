@@ -11,6 +11,7 @@ import GroupsPage from "./pages/admin/Groups";
 import AdminReports from "./pages/admin/Reports";
 import AdminCertificates from "./pages/admin/Certificates";
 import AdminAssessmentScheme from "./pages/admin/AssessmentScheme";
+import AdminSettings from "./pages/admin/Settings";
 import InstructorScoreEntry from "./pages/instructor/ScoreEntry";
 import GradeManagement from "./pages/admin/GradeManagement";
 import StudentDashboard from "./pages/student/Dashboard";
@@ -277,6 +278,7 @@ function App() {
     if (page === "reports") return <AdminReports user={currentUser} data={scopedData} />;
     if (page === "certificates") return <AdminCertificates user={currentUser} data={scopedData} />;
     if (page === "assessment") return <AdminAssessmentScheme user={currentUser} data={scopedData} />;
+    if (page === "settings") return <AdminSettings user={currentUser} data={scopedData} />;
     if (page === "score-entry") return <InstructorScoreEntry user={currentUser} data={scopedData} />;
     if (page === "notifications") return <NotificationsPage user={currentUser} data={scopedData} setData={setData} />;
     if (page === "chat") return <GroupChat user={currentUser} data={scopedData} setData={setData} />;
@@ -297,6 +299,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
