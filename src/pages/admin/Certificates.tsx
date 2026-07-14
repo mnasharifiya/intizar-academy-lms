@@ -2,6 +2,9 @@
 import * as QRCode from "qrcode";
 import { PageHeader, Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
+import { DEFAULT_SETTINGS, loadAppSettings, type AppSettings } from "../../lib/settingsApi";
+
+let CERTIFICATE_SETTINGS: AppSettings = DEFAULT_SETTINGS;
 import {
   createCertificate,
   loadCertificates,
@@ -62,6 +65,7 @@ export default function AdminCertificates({
   }
 
   useEffect(() => {
+    loadAppSettings().then((loaded) => { CERTIFICATE_SETTINGS = loaded; }).catch(() => { CERTIFICATE_SETTINGS = DEFAULT_SETTINGS; });
     refresh().catch(err => alert(err?.message || "Could not load certificates."));
   }, []);
 
@@ -688,7 +692,7 @@ async function printCertificate(cert: CertificateRecord) {
 
             <div class="content">
               <img class="logo" src="/intizar-logo.jpg" />
-              <div class="org">INTIZAR Academy</div>
+              <div class="org">${CERTIFICATE_SETTINGS.organizationName}</div>
               <div class="subtitle">Official Learning Management System Certificate</div>
               <div class="cert-title">Certificate</div>
               <div class="small-title">of Completion</div>
@@ -698,7 +702,7 @@ async function printCertificate(cert: CertificateRecord) {
               <div class="body-text">
                 for successfully completing the requirements of
                 <span class="program">${escapeHtml(cert.programName)}</span>
-                under INTIZAR Academy, having satisfied the approved assessment,
+                under ${CERTIFICATE_SETTINGS.organizationName}, having satisfied the approved assessment,
                 payment, and administrative conditions for certification.
               </div>
 
@@ -722,17 +726,17 @@ async function printCertificate(cert: CertificateRecord) {
 
               <div class="signature-row">
                 <div class="signature">
-                  <img src="/certificates/secretary-signature.png" onerror="this.style.display='none'" />
+                  <img src="${CERTIFICATE_SETTINGS.secretarySignatureUrl}" onerror="this.style.display='none'" />
                   <div class="sig-line">Secretary Signature</div>
                 </div>
 
                 <div class="seal">
-                  <img src="/certificates/intizar-seal.png" onerror="this.style.display='none'" />
+                  <img src="${CERTIFICATE_SETTINGS.sealUrl}" onerror="this.style.display='none'" />
                   <div>Official Seal</div>
                 </div>
 
                 <div class="signature">
-                  <img src="/certificates/director-signature.png" onerror="this.style.display='none'" />
+                  <img src="${CERTIFICATE_SETTINGS.directorSignatureUrl}" onerror="this.style.display='none'" />
                   <div class="sig-line">Director / Coordinator Signature</div>
                 </div>
               </div>
@@ -798,5 +802,8 @@ const remedialBox: CSSProperties = {border:"1px solid #fde68a",background:"#fffb
 const refresherBox: CSSProperties = {border:"1px solid #fed7aa",background:"#fff7ed",borderRadius:14,padding:14,marginTop:16,color:"#9a3412",lineHeight:1.6};
 const certBox: CSSProperties = {border:"1px solid #bbf7d0",background:"#f0fdf4",borderRadius:14,padding:14,marginTop:16,color:"#166534",lineHeight:1.6};
 const emptyState: CSSProperties = {minHeight:120,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",color:C.muted};
+
+
+
 
 
