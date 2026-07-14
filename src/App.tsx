@@ -13,7 +13,6 @@ import AdminCertificates from "./pages/admin/Certificates";
 import AdminAssessmentScheme from "./pages/admin/AssessmentScheme";
 import AdminSettings from "./pages/admin/Settings";
 import InstructorScoreEntry from "./pages/instructor/ScoreEntry";
-import GradeManagement from "./pages/admin/GradeManagement";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
 import StudentLearning from "./pages/student/Learning";
@@ -264,7 +263,6 @@ function App() {
       if (page === "groups") return <InstructorGroups user={currentUser} data={scopedData} />;
       if (page === "assignments") return <InstructorAssignments user={currentUser} data={scopedData} setData={setData} />;
       if (page === "attendance") return <InstructorAttendance user={currentUser} data={scopedData} setData={setData} />;
-      if (page === "grades") return <GradeManagement user={currentUser} data={scopedData} setData={setData} />;
       if (page === "notifications") return <NotificationsPage user={currentUser} data={scopedData} setData={setData} />;
       if (page === "chat") return <GroupChat user={currentUser} data={scopedData} setData={setData} />;
       return <InstructorGroups user={currentUser} data={scopedData} />;
@@ -299,6 +297,8 @@ function App() {
 }
 
 export default App;
+
+
 
 
 
