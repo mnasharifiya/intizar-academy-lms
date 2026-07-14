@@ -6,6 +6,18 @@ import {
   type ApplicationPayment,
   type ApplicationRecord,
 } from "../../lib/applicationApi";
+import {
+  loadCourseResults,
+  type StudentCourseResult,
+} from "../../lib/scoreApi";
+import {
+  loadRemedialPayments,
+  type RemedialPayment,
+} from "../../lib/remedialApi";
+import {
+  loadCertificates,
+  type CertificateRecord,
+} from "../../lib/certificateApi";
 
 export default function AdminReports({
   user,
@@ -24,39 +36,74 @@ export default function AdminReports({
   const attendance = data?.attendance ?? [];
   const assignments = data?.assignments ?? [];
   const submissions = data?.submissions ?? [];
-  const grades = data?.grades ?? [];
   const videos = data?.videos ?? [];
   const materials = data?.learningMaterials ?? [];
   const adminGroups = data?.adminGroups ?? [];
 
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [payments, setPayments] = useState<ApplicationPayment[]>([]);
+  const [courseResults, setCourseResults] = useState<StudentCourseResult[]>([]);
+  const [remedialPayments, setRemedialPayments] = useState<RemedialPayment[]>([]);
+  const [certificates, setCertificates] = useState<CertificateRecord[]>([]);
 
   const currentAdminLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
   const isRestrictedAdmin = user?.role === "admin" && currentAdminLinks.length > 0;
   const isMainController = user?.role === "admin" && currentAdminLinks.length === 0;
 
-  useEffect(() => {
-    if (!isMainController) return;
-
-    loadApplications()
-      .then(res => {
-        setApplications(res.applications);
-        setPayments(res.payments);
-      })
-      .catch(err => console.warn("Application report load failed:", err));
-  }, [isMainController]);
-
   const students = users.filter((u: any) => u.role === "student");
   const instructors = users.filter((u: any) => u.role === "instructor");
   const admins = users.filter((u: any) => u.role === "admin");
+  const visibleStudentIds = new Set(students.map((s: any) => s.id));
 
-  function userName(id: string) {
+  useEffect(() => {
+    async function loadReportData() {
+      try {
+        const [resultList, remedialList, certificateList] = await Promise.all([
+          loadCourseResults().catch(() => []),
+          loadRemedialPayments().catch(() => []),
+          loadCertificates().catch(() => []),
+        ]);
+
+        setCourseResults(resultList.filter((r: any) => visibleStudentIds.has(r.studentId)));
+        setRemedialPayments(remedialList.filter((p: any) => visibleStudentIds.has(p.studentId)));
+        setCertificates(certificateList.filter((c: any) => visibleStudentIds.has(c.studentId)));
+
+        if (isMainController) {
+          const appData = await loadApplications();
+          setApplications(appData.applications);
+          setPayments(appData.payments);
+        }
+      } catch (err) {
+        console.warn("Report data load failed:", err);
+      }
+    }
+
+    loadReportData();
+  }, [user?.id, users.length, isMainController]);
+
+  function userName(id?: string | null) {
+    if (!id) return "-";
     return users.find((u: any) => u.id === id)?.name || "-";
   }
 
-  function levelName(id: string) {
+  function userEmail(id?: string | null) {
+    if (!id) return "-";
+    return users.find((u: any) => u.id === id)?.email || "-";
+  }
+
+  function levelName(id?: string | null) {
+    if (!id) return "-";
     return levels.find((l: any) => l.id === id)?.name || "-";
+  }
+
+  function courseName(id?: string | null) {
+    if (!id) return "-";
+    return courses.find((c: any) => c.id === id)?.name || "-";
+  }
+
+  function groupName(id?: string | null) {
+    if (!id) return "-";
+    return groups.find((g: any) => g.id === id)?.name || "-";
   }
 
   function groupMembers(groupId: string) {
@@ -64,16 +111,6 @@ export default function AdminReports({
       .filter((gs: any) => gs.groupId === groupId && gs.status !== "rejected")
       .map((gs: any) => users.find((u: any) => u.id === gs.studentId))
       .filter(Boolean);
-  }
-
-  function gradesForStudent(studentId: string) {
-    return grades.filter((g: any) => g.studentId === studentId);
-  }
-
-  function avgGradeForStudent(studentId: string) {
-    const list = gradesForStudent(studentId);
-    if (!list.length) return null;
-    return Math.round(list.reduce((sum: number, g: any) => sum + Number(g.score || 0), 0) / list.length);
   }
 
   function attendanceForStudent(studentId: string) {
@@ -108,36 +145,39 @@ export default function AdminReports({
     return Math.round((submitted / expected) * 100);
   }
 
+  function officialResultsForStudent(studentId: string) {
+    return courseResults.filter(r => r.studentId === studentId);
+  }
+
+  function officialAverageForStudent(studentId: string) {
+    const list = officialResultsForStudent(studentId).filter(r => r.assessmentComplete);
+
+    if (!list.length) return null;
+
+    return Math.round(
+      list.reduce((sum, r) => sum + Number(r.finalGrade || 0), 0) / list.length
+    );
+  }
+
+  function groupGradeAverage(groupId: string) {
+    const members = groupMembers(groupId);
+    const values = members
+      .map((s: any) => officialAverageForStudent(s.id))
+      .filter((v: any) => v !== null);
+
+    if (!values.length) return null;
+
+    return Math.round(values.reduce((a: number, b: number) => a + b, 0) / values.length);
+  }
+
   function groupAttendanceAverage(groupId: string) {
     const values = groupMembers(groupId)
       .map((s: any) => attendancePercentForStudent(s.id))
       .filter((v: any) => v !== null);
 
     if (!values.length) return null;
+
     return Math.round(values.reduce((a: number, b: number) => a + b, 0) / values.length);
-  }
-
-  function groupGradeAverage(groupId: string) {
-    const values = groupMembers(groupId)
-      .map((s: any) => avgGradeForStudent(s.id))
-      .filter((v: any) => v !== null);
-
-    if (!values.length) return null;
-    return Math.round(values.reduce((a: number, b: number) => a + b, 0) / values.length);
-  }
-
-  function courseGradeAverage(courseId: string) {
-    const courseAssignments = assignments.filter((a: any) => a.courseId === courseId);
-    const courseLectures = lectures.filter((l: any) => l.courseId === courseId);
-
-    const list = grades.filter((g: any) =>
-      courseAssignments.some((a: any) => a.id === g.assignmentId) ||
-      courseLectures.some((l: any) => l.id === g.lectureId)
-    );
-
-    if (!list.length) return null;
-
-    return Math.round(list.reduce((sum: number, g: any) => sum + Number(g.score || 0), 0) / list.length);
   }
 
   function courseStudentCount(courseId: string) {
@@ -147,6 +187,18 @@ export default function AdminReports({
 
     return students.filter((s: any) => levelIds.includes(s.levelId)).length;
   }
+
+  function courseAverage(courseId: string) {
+    const list = courseResults.filter(r => r.courseId === courseId && r.assessmentComplete);
+    if (!list.length) return null;
+
+    return Math.round(list.reduce((sum, r) => sum + Number(r.finalGrade || 0), 0) / list.length);
+  }
+
+  function latestPayment(applicationId: string) {
+    return payments.find(p => p.applicationId === applicationId) || null;
+  }
+
   const reportScopeRows = groups.map((group: any) => ({
     group: group.name,
     program: levelName(group.levelId),
@@ -170,7 +222,7 @@ export default function AdminReports({
     students: groupMembers(group.id).length,
     capacity: group.maxStudents,
     attendanceAverage: displayPercent(groupAttendanceAverage(group.id)),
-    gradeAverage: displayPercent(groupGradeAverage(group.id)),
+    officialGradeAverage: displayPercent(groupGradeAverage(group.id)),
     submissionRate: displayPercent(groupSubmissionRate(group.id)),
     status: group.isActive ? "Active" : "Inactive",
   }));
@@ -183,24 +235,70 @@ export default function AdminReports({
     assignments: assignments.filter((a: any) => a.courseId === course.id).length,
     videos: videos.filter((v: any) => v.courseId === course.id).length,
     materials: materials.filter((m: any) => m.courseId === course.id).length,
-    gradeAverage: displayPercent(courseGradeAverage(course.id)),
+    officialAverage: displayPercent(courseAverage(course.id)),
   }));
+
+  const officialCourseResultRows = courseResults.map(result => ({
+    student: userName(result.studentId),
+    email: userEmail(result.studentId),
+    course: courseName(result.courseId),
+    group: groupName(result.groupId),
+    finalGrade: result.finalGrade + "%",
+    passMark: result.passMark + "%",
+    status: result.status,
+    assessmentComplete: result.assessmentComplete ? "Yes" : "No",
+    calculatedAt: formatDate(result.calculatedAt),
+  }));
+
+  const studentOverallRows = students.map((student: any) => {
+    const results = officialResultsForStudent(student.id);
+    const completed = results.filter(r => r.assessmentComplete);
+    const passed = results.filter(r => r.status === "passed").length;
+    const failed = results.filter(r => r.status === "failed").length;
+    const incomplete = results.filter(r => r.status === "incomplete").length;
+
+    return {
+      student: student.name,
+      email: student.email,
+      program: levelName(student.levelId),
+      completedCourses: completed.length,
+      passedCourses: passed,
+      failedCourses: failed,
+      incompleteCourses: incomplete,
+      officialAverage: displayPercent(officialAverageForStudent(student.id)),
+      attendance: displayPercent(attendancePercentForStudent(student.id)),
+    };
+  });
+
+  const failedCourseRows = courseResults
+    .filter(r => r.status === "failed")
+    .map(result => ({
+      student: userName(result.studentId),
+      email: userEmail(result.studentId),
+      course: courseName(result.courseId),
+      group: groupName(result.groupId),
+      finalGrade: result.finalGrade + "%",
+      passMark: result.passMark + "%",
+      remedialRule: "1 failed course = ₦200; more than 1 = ₦250 per course",
+      calculatedAt: formatDate(result.calculatedAt),
+    }));
 
   const atRiskRows = students
     .map((student: any) => {
-      const avg = avgGradeForStudent(student.id);
+      const avg = officialAverageForStudent(student.id);
       const att = attendancePercentForStudent(student.id);
-      const mySubmissions = submissions.filter((s: any) => s.studentId === student.id).length;
+      const myResults = officialResultsForStudent(student.id);
+      const failed = myResults.filter(r => r.status === "failed").length;
+      const incomplete = myResults.filter(r => r.status === "incomplete").length;
 
       const myMembership = groupStudents.find((gs: any) => gs.studentId === student.id);
       const myGroup = groups.find((g: any) => g.id === myMembership?.groupId);
-      const myAssignments = myGroup ? assignments.filter((a: any) => a.groupId === myGroup.id) : [];
-      const missingSubmissions = Math.max(0, myAssignments.length - mySubmissions);
 
       const riskReasons = [
-        avg !== null && avg < 50 ? "Low grade average" : "",
-        att !== null && att < 60 ? "Low attendance" : "",
-        missingSubmissions > 0 ? "Missing submissions" : "",
+        avg !== null && avg < 70 ? "Low official average" : "",
+        att !== null && att < 70 ? "Low attendance / refresher risk" : "",
+        failed > 0 ? "Failed course" : "",
+        incomplete > 0 ? "Incomplete assessment" : "",
         !myGroup ? "No group assigned" : "",
       ].filter(Boolean);
 
@@ -209,13 +307,45 @@ export default function AdminReports({
         email: student.email,
         program: levelName(student.levelId),
         group: myGroup?.name || "-",
-        gradeAverage: displayPercent(avg),
+        officialAverage: displayPercent(avg),
         attendance: displayPercent(att),
-        missingSubmissions,
+        failedCourses: failed,
+        incompleteCourses: incomplete,
         riskReason: riskReasons.join(", ") || "Normal",
       };
     })
     .filter((row: any) => row.riskReason !== "Normal");
+
+  const remedialRows = remedialPayments.map(payment => ({
+    student: userName(payment.studentId),
+    email: userEmail(payment.studentId),
+    program: levelName(payment.programId),
+    group: groupName(payment.groupId),
+    paymentReference: payment.paymentReference,
+    paymentCategory: payment.paymentCategory,
+    failedCourseCount: payment.failedCourseCount,
+    amount: formatMoney(payment.amount),
+    status: payment.status,
+    transactionReference: payment.transactionReference || "-",
+    payerName: payment.payerName || "-",
+    bankName: payment.bankName || "-",
+    verifiedAt: formatDate(payment.verifiedAt),
+    createdAt: formatDate(payment.createdAt),
+  }));
+
+  const certificateRows = certificates.map(cert => ({
+    certificateNo: cert.certificateNo,
+    student: cert.studentName,
+    regNo: cert.regNo || "-",
+    program: cert.programName,
+    branch: cert.branch || "-",
+    zone: cert.zone || "-",
+    status: cert.status,
+    issuedAt: formatDate(cert.issuedAt),
+    revokedAt: formatDate(cert.revokedAt),
+    revokeReason: cert.revokeReason || "-",
+    verificationToken: cert.verificationToken,
+  }));
 
   const applicationRows = applications.map(app => ({
     applicationNo: app.applicationNo,
@@ -225,7 +355,8 @@ export default function AdminReports({
     zone: app.zone,
     branch: app.branch,
     workInBranch: app.workInBranch,
-    program: levelName(app.finalProgramId || app.programId),
+    chosenProgram: levelName(app.programId),
+    finalProgram: levelName(app.finalProgramId || app.programId),
     amount: formatMoney(app.applicationFee),
     paymentReference: app.paymentReference,
     paymentStatus: app.paymentStatus,
@@ -252,30 +383,41 @@ export default function AdminReports({
 
   const enrolledRows = applications
     .filter(app => app.applicationStatus === "approved")
-    .map(app => ({
-      studentOrApplicant: app.fullName,
-      email: app.email,
-      phone: app.phoneNo,
-      branch: app.branch,
-      program: levelName(app.finalProgramId || app.programId),
-      regNo: app.finalRegNo || app.suggestedRegNo || "-",
-      amountPaid: formatMoney(app.applicationFee),
-      paymentCategory: "Application / Enrollment Fee",
-      paymentReference: app.paymentReference,
-      paymentVerifiedAt: formatDate(app.paymentVerifiedAt),
-      enrolledOrApprovedAt: formatDate(app.mainAdminApprovedAt),
-    }));
+    .map(app => {
+      const payment = latestPayment(app.id);
 
-  const totalPaid = payments
+      return {
+        studentOrApplicant: app.fullName,
+        email: app.email,
+        phone: app.phoneNo,
+        branch: app.branch,
+        zone: app.zone,
+        program: levelName(app.finalProgramId || app.programId),
+        regNo: app.finalRegNo || app.suggestedRegNo || "-",
+        amountPaid: formatMoney(app.applicationFee),
+        paymentCategory: "Application / Enrollment Fee",
+        paymentReference: app.paymentReference,
+        transactionReference: payment?.transactionReference || "-",
+        paymentVerifiedAt: formatDate(app.paymentVerifiedAt),
+        enrolledOrApprovedAt: formatDate(app.mainAdminApprovedAt),
+      };
+    });
+
+  const totalApplicationPaid = payments
+    .filter(p => p.status === "verified")
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  const totalRemedialPaid = remedialPayments
     .filter(p => p.status === "verified")
     .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   const financeSummaryRows = [
     { item: "Total applications", value: applications.length },
-    { item: "Payment proofs submitted", value: payments.filter(p => p.status === "submitted").length },
-    { item: "Verified payments", value: payments.filter(p => p.status === "verified").length },
-    { item: "Approved/enrolled applications", value: enrolledRows.length },
-    { item: "Total verified amount", value: formatMoney(totalPaid) },
+    { item: "Verified application payments", value: payments.filter(p => p.status === "verified").length },
+    { item: "Total application amount", value: formatMoney(totalApplicationPaid) },
+    { item: "Verified remedial payments", value: remedialPayments.filter(p => p.status === "verified").length },
+    { item: "Total remedial amount", value: formatMoney(totalRemedialPaid) },
+    { item: "Grand total verified amount", value: formatMoney(totalApplicationPaid + totalRemedialPaid) },
   ];
 
   const academicSections = [
@@ -288,23 +430,28 @@ export default function AdminReports({
       filename: "intizar-report-scope.xls",
     },
     { title: "User Summary", sub: "Total users by role", rows: userRows, filename: "intizar-user-summary.xls" },
-    { title: "Group Performance", sub: "Students, attendance, grades, and submission rate per group", rows: groupRows, filename: "intizar-group-performance.xls" },
-    { title: "Course Performance", sub: "Course usage, lectures, assignments, videos, materials, and average grade", rows: courseRows, filename: "intizar-course-performance.xls" },
-    { title: "At-risk Students", sub: "Students who may need attention", rows: atRiskRows, filename: "intizar-at-risk-students.xls" },
+    { title: "Student Overall / CGPA", sub: "Official student course average and assessment status", rows: studentOverallRows, filename: "intizar-student-overall.xls" },
+    { title: "Official Course Results", sub: "Final weighted course results from Score Entry", rows: officialCourseResultRows, filename: "intizar-official-course-results.xls" },
+    { title: "Failed Courses", sub: "Students who failed official course results", rows: failedCourseRows, filename: "intizar-failed-courses.xls" },
+    { title: "Group Performance", sub: "Students, attendance, official grades, and submission rate per group", rows: groupRows, filename: "intizar-group-performance.xls" },
+    { title: "Course Performance", sub: "Course usage and official average", rows: courseRows, filename: "intizar-course-performance.xls" },
+    { title: "At-risk Students", sub: "Students who may need academic or attendance attention", rows: atRiskRows, filename: "intizar-at-risk-students.xls" },
+    { title: "Certificates", sub: "Issued and revoked certificate records", rows: certificateRows, filename: "intizar-certificates.xls" },
   ];
 
   const financeSections = isMainController
     ? [
-        { title: "Finance Summary", sub: "Application and enrollment payment totals", rows: financeSummaryRows, filename: "intizar-finance-summary.xls" },
+        { title: "Finance Summary", sub: "Application, enrollment, and remedial payment totals", rows: financeSummaryRows, filename: "intizar-finance-summary.xls" },
         { title: "Enrollment Report", sub: "Approved applications/enrolled students with date, amount, and payment category", rows: enrolledRows, filename: "intizar-enrollment-report.xls" },
-        { title: "Payment Transactions", sub: "All submitted and verified payment records", rows: paymentRows, filename: "intizar-payment-transactions.xls" },
+        { title: "Application Payment Transactions", sub: "All submitted and verified application payment records", rows: paymentRows, filename: "intizar-payment-transactions.xls" },
+        { title: "Remedial Payments", sub: "Failed-course remedial payment records", rows: remedialRows, filename: "intizar-remedial-payments.xls" },
         { title: "Application Register", sub: "All submitted application records", rows: applicationRows, filename: "intizar-application-register.xls" },
       ]
     : [
         {
           title: "Financial Reports",
           sub: "Restricted admins cannot view global payment reports.",
-          rows: [{ scope: "Restricted Admin", note: "Only Main Controller can view and download application/payment finance reports." }],
+          rows: [{ scope: "Restricted Admin", note: "Only Main Controller can view and download global finance reports." }],
           filename: "intizar-finance-scope.xls",
         },
       ];
@@ -316,9 +463,9 @@ export default function AdminReports({
       <div style={hero}>
         <div>
           <div style={eyebrow}>Admin Reports</div>
-          <h1 style={heroTitle}>Reports, Finance & Performance</h1>
+          <h1 style={heroTitle}>Reports, Finance & Academic Performance</h1>
           <p style={heroSub}>
-            Download spreadsheet reports or print/save as PDF. Includes enrollment, payment, academic, and group reports.
+            Download spreadsheet reports or print/save as PDF. Includes official course results, CGPA, failed courses, remedial payments, certificates, enrollment, and finance.
           </p>
         </div>
 
@@ -335,10 +482,10 @@ export default function AdminReports({
       <div style={statsGrid}>
         <Stat label="Students" value={String(students.length)} />
         <Stat label="Groups" value={String(groups.length)} />
-        <Stat label="Applications" value={isMainController ? String(applications.length) : "-"} />
-        <Stat label="Enrolled/Paid" value={isMainController ? String(enrolledRows.length) : "-"} />
-        <Stat label="Verified Amount" value={isMainController ? formatMoney(totalPaid) : "-"} />
-        <Stat label="At-risk Students" value={String(atRiskRows.length)} danger={atRiskRows.length > 0} />
+        <Stat label="Official Results" value={String(courseResults.length)} />
+        <Stat label="Failed Courses" value={String(failedCourseRows.length)} danger={failedCourseRows.length > 0} />
+        <Stat label="Certificates" value={String(certificateRows.length)} />
+        <Stat label="Verified Amount" value={isMainController ? formatMoney(totalApplicationPaid + totalRemedialPaid) : "-"} />
       </div>
 
       {sections.map((section) => (
@@ -548,7 +695,7 @@ function printReport(title: string, sections: { title: string; sub?: string; row
 }
 
 function escapeHtml(value: string) {
-  return value
+  return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -625,7 +772,7 @@ const statLabel: CSSProperties = {
 };
 
 const statValue: CSSProperties = {
-  fontSize:26,
+  fontSize:24,
   fontWeight:900,
   marginTop:5,
 };
@@ -707,5 +854,3 @@ const outlineButton: CSSProperties = {
   fontWeight:900,
   cursor:"pointer",
 };
-
-
