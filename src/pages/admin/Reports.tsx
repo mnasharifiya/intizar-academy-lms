@@ -594,6 +594,7 @@ function formatHeader(value: string) {
 }
 
 
+
 function tableHtml(rows: any[]) {
   if (!rows.length) return "<p>No records found.</p>";
 
@@ -610,18 +611,39 @@ function tableHtml(rows: any[]) {
     "</tbody></table>";
 }
 
+function officialReportHeader(reportTitle: string) {
+  return "<div class='official-header'>" +
+    "<img src='/intizar-logo.jpg' class='report-logo' />" +
+    "<div>" +
+    "<div class='org-name'>INTIZAR Academy</div>" +
+    "<div class='report-title'>" + escapeHtml(reportTitle) + "</div>" +
+    "<div class='generated'>Generated: " + new Date().toLocaleString() + "</div>" +
+    "</div>" +
+    "</div>";
+}
+
 function downloadWorkbook(filename: string, sections: { title: string; sub?: string; rows: any[] }[]) {
+  const reportTitle = filename
+    .replace(/\.xls$/i, "")
+    .replace(/^intizar-/i, "")
+    .replace(/-/g, " ")
+    .replace(/^./, c => c.toUpperCase());
+
   const html = "<html><head><meta charset=\"UTF-8\" />" +
     "<style>" +
-    "body{font-family:Arial,sans-serif;}" +
-    "h1{color:#052e16;}" +
+    "body{font-family:Arial,sans-serif;color:#0f172a;}" +
+    ".official-header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #166534;padding-bottom:14px;margin-bottom:20px;}" +
+    ".report-logo{width:72px;height:72px;object-fit:contain;}" +
+    ".org-name{font-size:24px;font-weight:bold;color:#052e16;}" +
+    ".report-title{font-size:18px;font-weight:bold;color:#166534;text-transform:capitalize;margin-top:4px;}" +
+    ".generated{font-size:12px;color:#475569;margin-top:4px;}" +
     "h2{color:#166534;margin-top:24px;}" +
+    "p{color:#475569;}" +
     "table{border-collapse:collapse;width:100%;margin-bottom:18px;}" +
     "th{background:#dcfce7;color:#052e16;font-weight:bold;}" +
     "th,td{border:1px solid #94a3b8;padding:8px;font-size:12px;}" +
     "</style></head><body>" +
-    "<h1>INTIZAR Academy Report</h1>" +
-    "<p>Generated: " + new Date().toLocaleString() + "</p>" +
+    officialReportHeader(reportTitle) +
     sections.map(section =>
       "<h2>" + escapeHtml(section.title) + "</h2>" +
       "<p>" + escapeHtml(section.sub || "") + "</p>" +
@@ -647,17 +669,20 @@ function printReport(title: string, sections: { title: string; sub?: string; row
     "<title>" + escapeHtml(title) + "</title>" +
     "<style>" +
     "body{font-family:Arial,sans-serif;padding:28px;color:#0f172a;}" +
-    "h1{color:#052e16;margin-bottom:4px;}" +
+    ".official-header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #166534;padding-bottom:16px;margin-bottom:24px;}" +
+    ".report-logo{width:82px;height:82px;object-fit:contain;}" +
+    ".org-name{font-size:28px;font-weight:bold;color:#052e16;}" +
+    ".report-title{font-size:20px;font-weight:bold;color:#166534;text-transform:capitalize;margin-top:5px;}" +
+    ".generated{font-size:13px;color:#475569;margin-top:5px;}" +
     "h2{color:#166534;margin-top:28px;border-bottom:2px solid #dcfce7;padding-bottom:6px;}" +
     "p{color:#475569;}" +
     "table{border-collapse:collapse;width:100%;margin-top:12px;page-break-inside:auto;}" +
     "th{background:#dcfce7;color:#052e16;text-align:left;font-weight:bold;}" +
     "th,td{border:1px solid #94a3b8;padding:8px;font-size:12px;}" +
     "tr{page-break-inside:avoid;}" +
-    "@media print{body{padding:16px;}}" +
+    "@media print{body{padding:16px;}.official-header{break-inside:avoid;}}" +
     "</style></head><body>" +
-    "<h1>" + escapeHtml(title) + "</h1>" +
-    "<p>Generated: " + new Date().toLocaleString() + "</p>" +
+    officialReportHeader(title) +
     sections.map(section =>
       "<h2>" + escapeHtml(section.title) + "</h2>" +
       "<p>" + escapeHtml(section.sub || "") + "</p>" +
