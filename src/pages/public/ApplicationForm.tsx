@@ -112,14 +112,20 @@ export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () 
       } as any);
 
       setSubmitted(result);
-      alert("Application submitted successfully. Please pay and submit your payment proof.");
-      setMode("proof");
 
-      setProof(prev => ({
-        ...prev,
+      setProof({
         applicationNo: result?.applicationNo || "",
         paymentReference: result?.paymentReference || "",
-      }));
+        payerName: "",
+        bankName: "",
+        transactionReference: "",
+        paymentProof: "",
+      });
+
+      setForm(emptyForm);
+      setMode("proof");
+
+      alert("Application submitted successfully. Your form has been cleared. Please pay and submit your payment proof.");
     } catch (err: any) {
       console.error(err);
       alert(err?.message || "Could not submit application.");
@@ -136,6 +142,21 @@ export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () 
       return;
     }
 
+    if (!proof.payerName.trim()) {
+      alert("Payer name is required.");
+      return;
+    }
+
+    if (!proof.bankName.trim()) {
+      alert("Bank name used is required.");
+      return;
+    }
+
+    if (!proof.transactionReference.trim()) {
+      alert("Transaction reference is required.");
+      return;
+    }
+
     if (!proof.paymentProof) {
       alert("Payment proof image is required.");
       return;
@@ -146,6 +167,7 @@ export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () 
     try {
       await submitPaymentProof(proof as any);
       setProof(emptyProof);
+      setSubmitted(null);
       alert("Payment proof submitted. Main Admin will verify it.");
     } catch (err: any) {
       console.error(err);
@@ -540,6 +562,7 @@ const infoCard: CSSProperties = {
   borderRadius: 14,
   padding: 12,
 };
+
 
 
 

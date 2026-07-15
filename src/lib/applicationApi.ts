@@ -195,35 +195,93 @@ export async function submitApplication(input: {
 }
 
 export async function submitPaymentProof(input: {
-  applicationNo: string;
-  email: string;
-  payerName: string;
-  bankName: string;
-  transactionReference: string;
+  applicationNo?: string;
+  paymentReference?: string;
+  payerName?: string;
+  bankName?: string;
+  transactionReference?: string;
   paymentProof: string;
-}): Promise<void> {
-  const { data: app, error: appErr } = await supabase
-    .from("applications")
+}) {
+  const applicationNo = (input.applicationNo || "").trim();
+  const paymentReference = (input.paymentReference || "").trim();
+
+  if (!applicationNo && !paymentReference) {
+    throw new Error("Application number or payment reference is required.");
+  }
+
+  if (!input.payerName?.trim()) {
+    throw new Error("Payer name is required.");
+  }
+
+  if (!input.bankName?.trim()) {
+    throw new Error("Bank name used is required.");
+  }
+
+  if (!input.transactionReference?.trim()) {
+    throw new Error("Transaction reference is required.");
+  }
+
+  if (!input.paymentProof) {
+    throw new Error("Payment proof image is required.");
+  }
+
+  let application: any = null;
+
+  if (applicationNo) {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("application_no", applicationNo)
+      .maybeSingle();
+
+    if (error) throw error;
+    application = data;
+  }
+
+  if (!application && paymentReference) {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("payment_reference", paymentReference)
+      .maybeSingle();
+
+    if (error) throw error;
+    application = data;
+  }
+
+  if (!application) {
+    throw new Error("Application not found. Check application number or payment reference.");
+  }
+
+  const { data: paymentRow, error: paymentError } = await supabase
+    .from("application_payments")
+    .insert({
+      application_id: application.id,
+      payment_reference: application.payment_reference,
+      provider: "bank_transfer",
+      amount: application.application_fee,
+      status: "submitted",
+      payer_name: input.payerName.trim(),
+      bank_name: input.bankName.trim(),
+      transaction_reference: input.transactionReference.trim(),
+      payment_proof: input.paymentProof,
+    })
     .select("*")
-    .eq("application_no", input.applicationNo)
-    .eq("email", input.email)
-    .maybeSingle();
+    .single();
 
-  if (appErr) throw appErr;
-  if (!app) throw new Error("Application not found. Check application number and email.");
+  if (paymentError) throw paymentError;
 
-  const { error } = await supabase.from("application_payments").insert({
-    application_id: (app as any).id,
-    payment_reference: (app as any).payment_reference,
-    amount: (app as any).application_fee,
-    status: "submitted",
-    payer_name: input.payerName,
-    bank_name: input.bankName,
-    transaction_reference: input.transactionReference,
-    payment_proof: input.paymentProof,
-  });
+  const { error: updateError } = await supabase
+    .from("applications")
+    .update({
+      payment_status: "submitted",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", application.id);
 
-  if (error) throw error;
+  if (updateError) throw updateError;
+
+  return paymentRow;
 }
 
 export async function loadApplications(): Promise<{
@@ -376,3 +434,4 @@ export async function markApplicationStudentCreated(input: {
 
   if (appErr) throw appErr;
 }
+
