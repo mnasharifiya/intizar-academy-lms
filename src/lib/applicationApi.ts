@@ -253,7 +253,7 @@ export async function submitPaymentProof(input: {
     throw new Error("Application not found. Check application number or payment reference.");
   }
 
-  const { data: paymentRow, error: paymentError } = await supabase
+  const { error: paymentError } = await supabase
     .from("application_payments")
     .insert({
       application_id: application.id,
@@ -265,9 +265,7 @@ export async function submitPaymentProof(input: {
       bank_name: input.bankName.trim(),
       transaction_reference: input.transactionReference.trim(),
       payment_proof: input.paymentProof,
-    })
-    .select("*")
-    .single();
+    });
 
   if (paymentError) throw paymentError;
 
@@ -281,7 +279,7 @@ export async function submitPaymentProof(input: {
 
   if (updateError) throw updateError;
 
-  return paymentRow;
+  return true;
 }
 
 export async function loadApplications(): Promise<{
@@ -434,4 +432,5 @@ export async function markApplicationStudentCreated(input: {
 
   if (appErr) throw appErr;
 }
+
 
