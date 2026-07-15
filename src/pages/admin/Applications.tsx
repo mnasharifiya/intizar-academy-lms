@@ -94,6 +94,62 @@ export default function AdminApplications({
     return payments.find(p => p.applicationId === applicationId) || null;
   }
 
+  function openDataFile(dataUrl: string | null | undefined, label: string) {
+    if (!dataUrl) {
+      alert(label + " is not available.");
+      return;
+    }
+
+    const win = window.open("", "_blank", "noopener,noreferrer");
+
+    if (win) {
+      win.document.write(`
+        <html>
+          <head>
+            <title>${label}</title>
+            <style>
+              body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: #fff; }
+              .bar { padding: 12px 16px; background: #052e16; display: flex; justify-content: space-between; align-items: center; }
+              a { color: #fff; font-weight: bold; }
+              iframe, img { width: 100%; height: calc(100vh - 52px); border: none; object-fit: contain; background: #111827; }
+            </style>
+          </head>
+          <body>
+            <div class="bar">
+              <strong>${label}</strong>
+              <a href="${dataUrl}" download="${label.replace(/[^a-zA-Z0-9-_]/g, "-")}">Download</a>
+            </div>
+            ${
+              dataUrl.startsWith("data:application/pdf")
+                ? `<iframe src="${dataUrl}"></iframe>`
+                : `<img src="${dataUrl}" />`
+            }
+          </body>
+        </html>
+      `);
+      win.document.close();
+    } else {
+      downloadDataFile(dataUrl, label);
+    }
+  }
+
+  function downloadDataFile(dataUrl: string | null | undefined, filename: string) {
+    if (!dataUrl) {
+      alert(filename + " is not available.");
+      return;
+    }
+
+    const ext = dataUrl.startsWith("data:application/pdf") ? "pdf" : "jpg";
+    const safe = filename.replace(/[^a-zA-Z0-9-_]/g, "-");
+
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `${safe}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
   function groupsForProgram(programId: string) {
     return groups.filter((g: any) =>
       g.levelId === programId &&
@@ -129,20 +185,9 @@ export default function AdminApplications({
   }
 
   function downloadReceipt(app: ApplicationRecord, payment: ApplicationPayment) {
-    if (!payment.paymentProof) {
-      alert("No receipt/proof uploaded for this payment.");
-      return;
-    }
-
-    const ext = payment.paymentProof.startsWith("data:application/pdf") ? "pdf" : "jpg";
     const safeAppNo = app.applicationNo.replace(/[^a-zA-Z0-9-_]/g, "-");
     const safeName = app.fullName.replace(/[^a-zA-Z0-9-_]/g, "-");
-    const filename = `receipt-${safeAppNo}-${safeName}.${ext}`;
-
-    const a = document.createElement("a");
-    a.href = payment.paymentProof;
-    a.download = filename;
-    a.click();
+    downloadDataFile(payment.paymentProof, `receipt-${safeAppNo}-${safeName}`);
   }
 
   async function verify(app: ApplicationRecord) {
@@ -401,6 +446,29 @@ export default function AdminApplications({
                 <Info label="Student Account" value={app.createdStudentId ? "Created: " + userName(app.createdStudentId) : "Not created"} />
               </div>
 
+              <div style={detailsBox}>
+                <h3 style={detailsTitle}>Applicant Contact Details</h3>
+
+                <div style={grid}>
+                  <Info label="Email" value={app.email || "-"} />
+                  <Info label="Phone" value={app.phoneNo || "-"} />
+                  <Info label="Zone" value={app.zone || "-"} />
+                  <Info label="Branch" value={app.branch || "-"} />
+                  <Info label="Work in Branch" value={app.workInBranch || "-"} />
+                  <Info label="Submitted At" value={app.createdAt ? new Date(app.createdAt).toLocaleString() : "-"} />
+                </div>
+
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:12}}>
+                  <button type="button" style={receiptButton} onClick={() => openDataFile(app.photo, "Applicant Photo - " + app.fullName)}>
+                    View Applicant Photo
+                  </button>
+
+                  <button type="button" style={outlineReceiptButton} onClick={() => downloadDataFile(app.photo, "applicant-photo-" + app.fullName)}>
+                    Download Applicant Photo
+                  </button>
+                </div>
+              </div>
+
               {programChanged && (
                 <div style={warningBox}>
                   Main Admin changed the final track from <strong>{originalProgram}</strong> to <strong>{finalProgram}</strong>.
@@ -417,13 +485,17 @@ export default function AdminApplications({
 
                   {payment.paymentProof && (
                     <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:10}}>
-                      <a href={payment.paymentProof} target="_blank" rel="noreferrer" style={linkStyle}>
-                        Open Receipt
-                      </a>
-
                       <button
                         type="button"
                         style={receiptButton}
+                        onClick={() => openDataFile(payment.paymentProof, "Payment Receipt - " + app.fullName)}
+                      >
+                        View Receipt
+                      </button>
+
+                      <button
+                        type="button"
+                        style={outlineReceiptButton}
                         onClick={() => downloadReceipt(app, payment)}
                       >
                         Download Receipt
@@ -614,11 +686,15 @@ const infoCard: CSSProperties = {border:"1px solid "+C.border,borderRadius:14,pa
 const paymentBox: CSSProperties = {border:"1px solid #fde68a",background:"#fffbeb",borderRadius:14,padding:14,marginTop:16,lineHeight:1.6};
 const warningBox: CSSProperties = {border:"1px solid #fed7aa",background:"#fff7ed",borderRadius:14,padding:12,marginTop:14,color:"#9a3412",fontSize:13};
 const successBox: CSSProperties = {border:"1px solid #bbf7d0",background:"#f0fdf4",borderRadius:14,padding:12,marginTop:14,color:"#166534",fontSize:13};
-const linkStyle: CSSProperties = {display:"inline-block",color:C.primary,fontWeight:900,textDecoration:"none",padding:"8px 0"};
+const detailsBox: CSSProperties = {border:"1px solid #e2e8f0",background:"#f8fafc",borderRadius:16,padding:14,marginTop:16};
+const detailsTitle: CSSProperties = {margin:"0 0 12px",fontSize:17,fontWeight:900,color:C.text};
 const receiptButton: CSSProperties = {border:"none",background:C.primary,color:"#fff",borderRadius:10,padding:"8px 12px",fontWeight:900,cursor:"pointer",fontSize:13};
+const outlineReceiptButton: CSSProperties = {border:"1px solid #bbf7d0",background:"#fff",color:C.primary,borderRadius:10,padding:"8px 12px",fontWeight:900,cursor:"pointer",fontSize:13};
 const finalBox: CSSProperties = {display:"grid",gap:8,marginTop:16};
 const regBox: CSSProperties = {display:"grid",gap:8,marginTop:16};
 const createBox: CSSProperties = {border:"1px solid #dbeafe",background:"#eff6ff",borderRadius:16,padding:16,marginTop:18};
 const createTitle: CSSProperties = {margin:"0 0 6px",color:"#1e3a8a",fontSize:17,fontWeight:900};
 const createGrid: CSSProperties = {display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12,marginTop:12};
 const emptyState: CSSProperties = {minHeight:120,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",color:C.muted};
+
+
