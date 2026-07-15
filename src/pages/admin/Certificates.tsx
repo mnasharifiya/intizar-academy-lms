@@ -641,14 +641,27 @@ function certificateVerifyUrl(cert: CertificateRecord) {
 }
 
 async function printCertificate(cert: CertificateRecord) {
-  const win = window.open("", "_blank");
+  const iframe = document.createElement("iframe");
 
-  if (!win) {
-    alert("Popup blocked. Please allow popups to print the certificate.");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+
+  document.body.appendChild(iframe);
+
+  const win = iframe.contentWindow;
+  const doc = win?.document;
+
+  if (!win || !doc) {
+    alert("Could not open print dialog. Please try again.");
+    iframe.remove();
     return;
   }
 
-  win.document.write(`
+  doc.write(`
     <html>
       <body style="font-family:Arial;padding:30px">
         Preparing certificate QR code...
@@ -663,8 +676,8 @@ async function printCertificate(cert: CertificateRecord) {
     margin: 1,
   });
 
-  win.document.open();
-  win.document.write(`
+  doc.open();
+  doc.write(`
     <html>
       <head>
         <title>${escapeHtml(cert.certificateNo)}</title>
@@ -775,7 +788,7 @@ async function printCertificate(cert: CertificateRecord) {
     </html>
   `);
 
-  win.document.close();
+  doc.close();
 }
 
 function Info({ label, value }: { label: string; value: string }) {
