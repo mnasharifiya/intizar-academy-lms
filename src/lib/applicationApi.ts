@@ -225,59 +225,16 @@ export async function submitPaymentProof(input: {
     throw new Error("Payment proof image is required.");
   }
 
-  let application: any = null;
+  const { error } = await (supabase as any).rpc("submit_application_payment_proof", {
+    p_application_no: applicationNo,
+    p_payment_reference: paymentReference,
+    p_payer_name: input.payerName.trim(),
+    p_bank_name: input.bankName.trim(),
+    p_transaction_reference: input.transactionReference.trim(),
+    p_payment_proof: input.paymentProof,
+  });
 
-  if (applicationNo) {
-    const { data, error } = await supabase
-      .from("applications")
-      .select("*")
-      .eq("application_no", applicationNo)
-      .maybeSingle();
-
-    if (error) throw error;
-    application = data;
-  }
-
-  if (!application && paymentReference) {
-    const { data, error } = await supabase
-      .from("applications")
-      .select("*")
-      .eq("payment_reference", paymentReference)
-      .maybeSingle();
-
-    if (error) throw error;
-    application = data;
-  }
-
-  if (!application) {
-    throw new Error("Application not found. Check application number or payment reference.");
-  }
-
-  const { error: paymentError } = await supabase
-    .from("application_payments")
-    .insert({
-      application_id: application.id,
-      payment_reference: application.payment_reference,
-      provider: "bank_transfer",
-      amount: application.application_fee,
-      status: "submitted",
-      payer_name: input.payerName.trim(),
-      bank_name: input.bankName.trim(),
-      transaction_reference: input.transactionReference.trim(),
-      payment_proof: input.paymentProof,
-    });
-
-  if (paymentError) throw paymentError;
-
-  const { error: updateError } = await supabase
-    .from("applications")
-    .update({
-      payment_status: "submitted",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", application.id);
-
-  if (updateError) throw updateError;
+  if (error) throw error;
 
   return true;
 }
@@ -432,5 +389,7 @@ export async function markApplicationStudentCreated(input: {
 
   if (appErr) throw appErr;
 }
+
+
 
 
