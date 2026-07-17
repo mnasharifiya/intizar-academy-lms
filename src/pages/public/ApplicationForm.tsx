@@ -23,6 +23,19 @@ const emptyForm = {
   programId: "",
 };
 
+const BRANCHES_BY_ZONE: Record<string, string[]> = {
+  "Sokoto Zone": ["Sokoto", "Mafara", "Illela", "Yabo", "Yaure", "Zuru"],
+  "Zaria Zone": ["Danja", "Dutsen Wai", "Kudan", "Soba", "Zaria"],
+  "Kaduna Zone": ["Jaji", "M/Jos", "Kaduna"],
+  "Abuja Zone": ["Keffi", "Maraba", "Minna", "Suleja", "Lafia/Doma"],
+  "Kano Zone": ["Kano", "Kazaure", "Potiskum", "Gashua", "Maiduguri", "Nafada", "Damaturu"],
+  "Bauchi Zone": ["Gombe", "Jos", "Azare"],
+  "Malumfashi Zone": ["Bakori", "Malumfashi", "Katsina"],
+  "Nijar Zone": ["Niyame", "Maradi", "Qum"],
+};
+
+const ZONES = Object.keys(BRANCHES_BY_ZONE);
+
 const emptyProof = {
   applicationNo: "",
   paymentReference: "",
@@ -246,11 +259,33 @@ export default function ApplicationForm({ onBackToLogin }: { onBackToLogin?: () 
               </Field>
 
               <Field label="Zone">
-                <TextInput value={form.zone} onChange={(e: any) => updateForm("zone", e.target.value)} />
+                <select
+                  style={selectStyle}
+                  value={form.zone}
+                  onChange={(e: any) => {
+                    updateForm("zone", e.target.value);
+                    updateForm("branch", "");
+                  }}
+                >
+                  <option value="">Select zone</option>
+                  {ZONES.map(zone => (
+                    <option key={zone} value={zone}>{zone}</option>
+                  ))}
+                </select>
               </Field>
 
               <Field label="Branch">
-                <TextInput value={form.branch} onChange={(e: any) => updateForm("branch", e.target.value)} />
+                <select
+                  style={selectStyle}
+                  value={form.branch}
+                  disabled={!form.zone}
+                  onChange={(e: any) => updateForm("branch", e.target.value)}
+                >
+                  <option value="">{form.zone ? "Select branch" : "Select zone first"}</option>
+                  {(BRANCHES_BY_ZONE[form.zone] ?? []).map(branch => (
+                    <option key={branch} value={branch}>{branch}</option>
+                  ))}
+                </select>
               </Field>
 
               <Field label="Work in Branch">
