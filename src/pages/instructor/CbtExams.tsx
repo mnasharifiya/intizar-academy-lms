@@ -24,7 +24,7 @@ const emptyQuestion = (): CbtQuestionInput => ({
   ],
 });
 
-export default function InstructorCbtExamsPage({ data }: any) {
+export default function InstructorCbtExamsPage({ data, adminResultsOnly = false }: any) {
   const groups = data?.groups ?? [];
   const courses = data?.courses ?? [];
   const levelCourses = data?.levelCourses ?? [];
@@ -393,6 +393,62 @@ export default function InstructorCbtExamsPage({ data }: any) {
   function examAttemptCount(examId: string) {
     return attempts.filter((attempt: any) => attempt.exam_id === examId).length;
   }
+
+  // Admin CBT Results Only View
+  if (adminResultsOnly) {
+    return (
+      <div style={{ display: "grid", gap: 16 }}>
+        <Card>
+          <h1 style={{ marginTop: 0 }}>CBT Results</h1>
+          <p style={{ color: C.muted, marginTop: 0 }}>
+            Admin can view and download submitted CBT results only. Exam creation is restricted to instructors.
+          </p>
+
+          <div style={{ marginBottom: 12 }}>
+            <button type="button" onClick={downloadCbtResults} style={greenBtn}>
+              Download CBT Results
+            </button>
+          </div>
+
+          {resultRows().length === 0 && (
+            <p style={{ color: C.muted }}>No submitted CBT results yet.</p>
+          )}
+
+          {resultRows().length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={resultTable}>
+                <thead>
+                  <tr>
+                    <th style={th}>Student</th>
+                    <th style={th}>Exam</th>
+                    <th style={th}>Course</th>
+                    <th style={th}>Group</th>
+                    <th style={th}>Score</th>
+                    <th style={th}>Percentage</th>
+                    <th style={th}>Submitted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resultRows().map((row: any) => (
+                    <tr key={row.attempt.id}>
+                      <td style={td}>{row.student}</td>
+                      <td style={td}>{row.examTitle}</td>
+                      <td style={td}>{row.course}</td>
+                      <td style={td}>{row.group}</td>
+                      <td style={td}>{row.score} / {row.total}</td>
+                      <td style={td}><strong>{row.percentage}%</strong></td>
+                      <td style={td}>{formatDate(row.submittedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  }
+
 
   return (
     <div>

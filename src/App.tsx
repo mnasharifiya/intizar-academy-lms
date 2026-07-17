@@ -279,7 +279,7 @@ function App() {
     if (page === "courses") return <CoursesPage data={scopedData} setData={setData} />;
     if (page === "groups") return <GroupsPage user={currentUser} data={scopedData} setData={setData} />;
     if (page === "reports") return <AdminReports user={currentUser} data={scopedData} />;
-    if (page === "admin-cbt-exams") return <InstructorCbtExamsPage data={scopedData} />;
+    if (page === "admin-cbt-exams") return <InstructorCbtExamsPage data={scopedData} adminResultsOnly={true} />;
     if (page === "certificates") return <AdminCertificates user={currentUser} data={scopedData} />;
     if (page === "assessment") return <AdminAssessmentScheme user={currentUser} data={scopedData} />;
     if (page === "settings") return <AdminSettings user={currentUser} data={scopedData} />;
