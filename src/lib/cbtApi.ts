@@ -159,3 +159,236 @@ export async function updateCbtExamStatus(examId: string, status: CbtExamStatus)
 
   return true;
 }
+
+
+export async function loadStudentCbtData(groupIds: string[]) {
+  if (!groupIds.length) {
+    return {
+      exams: [],
+      questions: [],
+      options: [],
+      attempts: [],
+    };
+  }
+
+  const userRes = await supabase.auth.getUser();
+  const userId = userRes.data.user?.id;
+
+  if (!userId) throw new Error("You must be logged in.");
+
+  const now = new Date().toISOString();
+
+  const [examsRes, attemptsRes] = await Promise.all([
+    supabase
+      .from("cbt_exams")
+      .select("*")
+      .eq("status", "published")
+      .in("group_id", groupIds)
+      .or("start_at.is.null,start_at.lte." + now)
+      .or("end_at.is.null,end_at.gte." + now)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("cbt_attempts")
+      .select("*")
+      .eq("student_id", userId)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (examsRes.error) throw examsRes.error;
+  if (attemptsRes.error) throw attemptsRes.error;
+
+  const exams = examsRes.data ?? [];
+  const examIds = exams.map((exam: any) => exam.id);
+
+  if (!examIds.length) {
+    return {
+      exams,
+      questions: [],
+      options: [],
+      attempts: attemptsRes.data ?? [],
+    };
+  }
+
+  const questionsRes = await supabase
+    .from("cbt_questions")
+    .select("id, exam_id, question_text, question_type, points, sort_order")
+    .in("exam_id", examIds)
+    .order("sort_order", { ascending: true });
+
+  if (questionsRes.error) throw questionsRes.error;
+
+  const questionIds = (questionsRes.data ?? []).map((question: any) => question.id);
+
+  let optionRows: any[] = [];
+
+  if (questionIds.length) {
+    const optionsRes = await supabase
+      .from("cbt_options")
+      .select("id, question_id, option_text, sort_order")
+      .in("question_id", questionIds)
+      .order("sort_order", { ascending: true });
+
+    if (optionsRes.error) throw optionsRes.error;
+
+    optionRows = optionsRes.data ?? [];
+  }
+
+  return {
+    exams,
+    questions: questionsRes.data ?? [],
+    options: optionRows,
+    attempts: attemptsRes.data ?? [],
+  };
+}
+
+export async function startCbtAttempt(examId: string) {
+  const userRes = await supabase.auth.getUser();
+  const userId = userRes.data.user?.id;
+
+  if (!userId) throw new Error("You must be logged in.");
+
+  const { data: exam, error: examError } = await supabase
+    .from("cbt_exams")
+    .select("*")
+    .eq("id", examId)
+    .single();
+
+  if (examError) throw examError;
+
+  if ((exam as any).status !== "published") {
+    throw new Error("This exam is not published.");
+  }
+
+  const now = new Date();
+
+  if ((exam as any).start_at && now < new Date((exam as any).start_at)) {
+    throw new Error("This exam has not started yet.");
+  }
+
+  if ((exam as any).end_at && now > new Date((exam as any).end_at)) {
+    throw new Error("This exam has ended.");
+  }
+
+  const { data: previousAttempts, error: attemptsError } = await supabase
+    .from("cbt_attempts")
+    .select("*")
+    .eq("exam_id", examId)
+    .eq("student_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (attemptsError) throw attemptsError;
+
+  const existingInProgress = (previousAttempts ?? []).find((attempt: any) => attempt.status === "in_progress");
+
+  if (existingInProgress) return existingInProgress;
+
+  const submittedCount = (previousAttempts ?? []).filter((attempt: any) => attempt.status === "submitted").length;
+
+  if (submittedCount >= Number((exam as any).attempts_allowed || 1)) {
+    throw new Error("You have already used your allowed attempt(s) for this exam.");
+  }
+
+  const { data: attempt, error } = await supabase
+    .from("cbt_attempts")
+    .insert({
+      exam_id: examId,
+      student_id: userId,
+      total_points: Number((exam as any).total_points || 0),
+      status: "in_progress",
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+
+  return attempt;
+}
+
+export async function submitCbtAttempt(
+  attemptId: string,
+  answers: { questionId: string; selectedOptionId: string }[]
+) {
+  const userRes = await supabase.auth.getUser();
+  const userId = userRes.data.user?.id;
+
+  if (!userId) throw new Error("You must be logged in.");
+
+  const { data: attempt, error: attemptError } = await supabase
+    .from("cbt_attempts")
+    .select("*")
+    .eq("id", attemptId)
+    .single();
+
+  if (attemptError) throw attemptError;
+
+  if ((attempt as any).student_id !== userId) {
+    throw new Error("This attempt does not belong to you.");
+  }
+
+  if ((attempt as any).status !== "in_progress") {
+    throw new Error("This attempt is already submitted.");
+  }
+
+  const { data: questions, error: questionsError } = await supabase
+    .from("cbt_questions")
+    .select("*")
+    .eq("exam_id", (attempt as any).exam_id);
+
+  if (questionsError) throw questionsError;
+
+  const questionIds = (questions ?? []).map((question: any) => question.id);
+
+  const { data: options, error: optionsError } = await supabase
+    .from("cbt_options")
+    .select("*")
+    .in("question_id", questionIds);
+
+  if (optionsError) throw optionsError;
+
+  const answerRows = (questions ?? []).map((question: any) => {
+    const selected = answers.find(answer => answer.questionId === question.id);
+    const selectedOption = (options ?? []).find((option: any) => option.id === selected?.selectedOptionId);
+    const isCorrect = Boolean((selectedOption as any)?.is_correct);
+    const pointsAwarded = isCorrect ? Number(question.points || 0) : 0;
+
+    return {
+      attempt_id: attemptId,
+      question_id: question.id,
+      selected_option_id: selected?.selectedOptionId || null,
+      is_correct: isCorrect,
+      points_awarded: pointsAwarded,
+    };
+  });
+
+  if (answerRows.length) {
+    const { error: answersError } = await supabase
+      .from("cbt_answers")
+      .upsert(answerRows, {
+        onConflict: "attempt_id,question_id",
+      });
+
+    if (answersError) throw answersError;
+  }
+
+  const totalPoints = (questions ?? []).reduce((sum: number, question: any) => sum + Number(question.points || 0), 0);
+  const score = answerRows.reduce((sum: number, row: any) => sum + Number(row.points_awarded || 0), 0);
+  const percentage = totalPoints > 0 ? Math.round((score / totalPoints) * 10000) / 100 : 0;
+
+  const { data: updatedAttempt, error: updateError } = await supabase
+    .from("cbt_attempts")
+    .update({
+      submitted_at: new Date().toISOString(),
+      score,
+      total_points: totalPoints,
+      percentage,
+      status: "submitted",
+    })
+    .eq("id", attemptId)
+    .select("*")
+    .single();
+
+  if (updateError) throw updateError;
+
+  return updatedAttempt;
+}

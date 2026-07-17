@@ -48,6 +48,7 @@ const studentNav = [
   { id: "assignments", label: "Assignments", icon: ClipboardList },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "grades", label: "Grades", icon: Award },
+  { id: "student-cbt-exams", label: "CBT Exams", icon: ClipboardList },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "chat", label: "Group Chat", icon: MessageCircle },
 ];

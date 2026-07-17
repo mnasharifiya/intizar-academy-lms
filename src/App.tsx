@@ -16,6 +16,7 @@ import InstructorScoreEntry from "./pages/instructor/ScoreEntry";
 import InstructorCbtExamsPage from "./pages/instructor/CbtExams";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
+import StudentCbtExamsPage from "./pages/student/CbtExams";
 import StudentLearning from "./pages/student/Learning";
 import StudentAssignments from "./pages/student/Assignments";
 import StudentAttendance from "./pages/student/Attendance";
@@ -253,6 +254,7 @@ function App() {
       if (page === "assignments") return <StudentAssignments user={currentUser} data={scopedData} setData={setData} />;
       if (page === "attendance") return <StudentAttendance user={currentUser} data={scopedData} />;
       if (page === "grades") return <StudentGrades user={currentUser} data={scopedData} />;
+    if (page === "student-cbt-exams") return <StudentCbtExamsPage data={scopedData} />;
       if (page === "notifications") return <NotificationsPage user={currentUser} data={scopedData} setData={setData} />;
       if (page === "chat") return <GroupChat user={currentUser} data={scopedData} setData={setData} />;
       return <StudentDashboard user={currentUser} data={scopedData} />;
