@@ -384,6 +384,16 @@ export async function submitCbtAttempt(
 
   if (updateError) throw updateError;
 
+  // Sync submitted CBT score into the main Student Grades system.
+  // If sync fails, do not block the student submission.
+  const { error: syncError } = await (supabase as any).rpc("sync_cbt_attempt_to_grade", {
+    p_attempt_id: attemptId,
+  });
+
+  if (syncError) {
+    console.warn("CBT grade sync failed:", syncError.message);
+  }
+
   return updatedAttempt;
 }
 
