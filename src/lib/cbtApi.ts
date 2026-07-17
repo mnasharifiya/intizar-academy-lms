@@ -223,40 +223,21 @@ export async function updateCbtExamStatus(examId: string, status: CbtExamStatus)
 }
 
 
-export async function loadStudentCbtData(groupIds: string[]) {
+export async function loadStudentCbtData(_groupIds: string[]) {
   const userRes = await supabase.auth.getUser();
   const userId = userRes.data.user?.id;
 
   if (!userId) throw new Error("You must be logged in.");
 
-  const membershipRes = await (supabase as any)
-    .from("group_students")
-    .select("*")
-    .eq("student_id", userId);
-
-  const membershipGroupIds = (membershipRes.data ?? [])
-    .map((row: any) => row.group_id || row.groupId)
-    .filter(Boolean);
-
-  const finalGroupIds = Array.from(new Set([...(groupIds ?? []), ...membershipGroupIds]));
-
-  if (!finalGroupIds.length) {
-    return {
-      exams: [],
-      questions: [],
-      options: [],
-      attempts: [],
-    };
-  }
-
   const now = new Date().toISOString();
 
+  // Do not filter by group_id in frontend.
+  // Supabase RLS will return only published exams assigned to this student's group.
   const [examsRes, attemptsRes] = await Promise.all([
     supabase
       .from("cbt_exams")
       .select("*")
       .eq("status", "published")
-      .in("group_id", finalGroupIds)
       .or("start_at.is.null,start_at.lte." + now)
       .or("end_at.is.null,end_at.gte." + now)
       .order("created_at", { ascending: false }),
