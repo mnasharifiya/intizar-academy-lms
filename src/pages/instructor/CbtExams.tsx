@@ -50,6 +50,7 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
     status: "draft" as "draft" | "published" | "closed",
     shuffleQuestions: false,
     showResultImmediately: true,
+  gradeComponentType: "quiz",
   });
 
   const [examQuestions, setExamQuestions] = useState<CbtQuestionInput[]>([emptyQuestion()]);
@@ -594,6 +595,17 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
               </select>
             </Field>
 
+            <Field label="CBT Type / Grade Component">
+              <select
+                style={inputStyle}
+                value={form.gradeComponentType || "quiz"}
+                onChange={(e: any) => setForm({ ...form, gradeComponentType: e.target.value })}
+              >
+                <option value="quiz">Quiz CBT</option>
+                <option value="exam">Exam CBT</option>
+              </select>
+            </Field>
+
             <Field label="Duration Minutes">
               <input
                 style={input}
@@ -850,7 +862,7 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
                 </p>
 
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <Badge>{exam.status}</Badge>
+                  <Badge>{exam.status} · Grade Component: {exam.grade_component_type || "quiz"}</Badge>
                   <Badge>{examQuestionCount(exam.id)} questions</Badge>
                   <Badge>{exam.total_points} points</Badge>
                   <Badge>{examAttemptCount(exam.id)} attempts</Badge>
