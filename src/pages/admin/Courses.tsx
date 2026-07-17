@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState, type CSSProperties } from "react";
 import { PageHeader, Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
-import { createCourse, addLevelCourse, removeLevelCourse } from "../../lib/api";
+import { createCourse, addLevelCourse, removeLevelCourse , deleteCourse } from "../../lib/api";
 
 export default function CoursesPage({ data, setData }: { data: any; setData: any }) {
   const [search, setSearch] = useState("");
@@ -80,6 +80,44 @@ export default function CoursesPage({ data, setData }: { data: any; setData: any
       studentCount: students.length,
       instructorCount: instructorIds.size,
     };
+  }
+  function courseDisplayName(course: any) {
+    return course.name || course.title || course.course_name || "Untitled course";
+  }
+
+  function isCourseUsed(courseId: string) {
+    return levelCourses.some((lc: any) => lc.course_id === courseId || lc.courseId === courseId);
+  }
+
+  async function handleDeleteCourse(course: any) {
+    const name = courseDisplayName(course);
+
+    if (isCourseUsed(course.id)) {
+      alert("This course is assigned to a program. Remove the program assignment first before deleting.");
+      return;
+    }
+
+    const ok = confirm(
+      "Are you sure you want to delete " + name + "? This should only be used for duplicate or unused courses."
+    );
+
+    if (!ok) return;
+
+    try {
+      await deleteCourse(course.id);
+
+      setData((d: any) => ({
+        ...d,
+        courses: (d.courses ?? []).filter((c: any) => c.id !== course.id),
+        levelCourses: (d.levelCourses ?? []).filter(
+          (lc: any) => lc.course_id !== course.id && lc.courseId !== course.id
+        ),
+      }));
+
+      alert("Course deleted successfully.");
+    } catch (err: any) {
+      alert(err?.message || "Could not delete course.");
+    }
   }
 
   return (
@@ -164,6 +202,58 @@ export default function CoursesPage({ data, setData }: { data: any; setData: any
           );
         })}
       </div>
+        <Card>
+          <h2 style={{ marginTop: 0 }}>Delete unused courses</h2>
+          <p style={{ color: C.muted, marginTop: 0 }}>
+            Main Admin can delete duplicate or unused courses. Courses assigned to programs are blocked.
+          </p>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {filteredCourses.map((course: any) => {
+              const used = isCourseUsed(course.id);
+
+              return (
+                <div
+                  key={"delete-" + course.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 12,
+                    padding: 12,
+                    background: "#ffffff",
+                  }}
+                >
+                  <div>
+                    <strong>{courseDisplayName(course)}</strong>
+                    <div style={{ color: C.muted, fontSize: 13 }}>
+                      {used ? "Assigned to a program. Cannot delete here." : "Unused course. Safe to delete if duplicate."}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={used}
+                    onClick={() => handleDeleteCourse(course)}
+                    style={{
+                      border: 0,
+                      borderRadius: 10,
+                      padding: "8px 12px",
+                      fontWeight: 800,
+                      cursor: used ? "not-allowed" : "pointer",
+                      background: used ? "#e5e7eb" : "#dc2626",
+                      color: used ? "#64748b" : "#ffffff",
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
 
       {filteredCourses.length === 0 && (
         <Card>
@@ -248,3 +338,4 @@ const modal: CSSProperties = {
   padding:24,
   boxShadow:"0 20px 60px rgba(0,0,0,.25)",
 };
+

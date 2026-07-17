@@ -1266,3 +1266,14 @@ export async function rejectGroupInstructor(
   if (error) throw error;
 }
 
+
+
+export async function deleteCourse(courseId: string) {
+  const { error } = await (supabase as any).rpc("delete_unused_course", {
+    p_course_id: courseId,
+  });
+
+  if (error) throw error;
+
+  return true;
+}
