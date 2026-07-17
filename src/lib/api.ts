@@ -1287,3 +1287,12 @@ export async function deleteProgram(programId: string) {
 
   return true;
 }
+
+
+export async function mergeDuplicatePrograms() {
+  const { data, error } = await (supabase as any).rpc("merge_all_duplicate_programs");
+
+  if (error) throw error;
+
+  return data ?? [];
+}

@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState, type CSSProperties } from "react";
 import { PageHeader, Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
-import { createCourse, addLevelCourse, removeLevelCourse , deleteCourse , deleteProgram } from "../../lib/api";
+import { createCourse, addLevelCourse, removeLevelCourse , deleteCourse , deleteProgram , mergeDuplicatePrograms } from "../../lib/api";
 
 export default function CoursesPage({ data, setData }: { data: any; setData: any }) {
   const [search, setSearch] = useState("");
@@ -133,6 +133,25 @@ export default function CoursesPage({ data, setData }: { data: any; setData: any
     return hasGroup || hasUser;
   }
 
+  async function handleMergeDuplicatePrograms() {
+    const ok = confirm(
+      "This will merge all duplicate programs with the same name, move their records to one program, and delete the duplicates. Continue?"
+    );
+
+    if (!ok) return;
+
+    try {
+      const result = await mergeDuplicatePrograms();
+      const totalRemoved = result.reduce((sum: number, row: any) => sum + Number(row.removed_count || 0), 0);
+
+      alert("Duplicate program merge completed. Removed duplicates: " + totalRemoved);
+
+      window.location.reload();
+    } catch (err: any) {
+      alert(err?.message || "Could not merge duplicate programs.");
+    }
+  }
+
   async function handleDeleteProgram(program: any) {
     const name = programDisplayName(program);
 
@@ -252,6 +271,24 @@ export default function CoursesPage({ data, setData }: { data: any; setData: any
           <p style={{ color: C.muted, marginTop: 0 }}>
             Main Admin can delete duplicate or unused programs. Programs with groups or users are blocked.
           </p>
+
+          <div style={{ marginBottom: 14 }}>
+            <button
+              type="button"
+              onClick={handleMergeDuplicatePrograms}
+              style={{
+                border: 0,
+                borderRadius: 12,
+                padding: "10px 14px",
+                fontWeight: 900,
+                cursor: "pointer",
+                background: "#16a34a",
+                color: "#ffffff",
+              }}
+            >
+              Merge All Duplicate Programs
+            </button>
+          </div>
 
           <div style={{ display: "grid", gap: 10 }}>
             {levels.map((program: any) => {
