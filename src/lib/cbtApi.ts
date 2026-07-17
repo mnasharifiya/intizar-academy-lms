@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+﻿import { supabase } from './supabase';
 
 export type CbtExamStatus = "draft" | "published" | "closed";
 
@@ -28,22 +28,83 @@ export type CbtExamInput = {
 };
 
 export async function loadCbtExams() {
-  const [examsRes, questionsRes, optionsRes, attemptsRes] = await Promise.all([
-    supabase.from("cbt_exams").select("*").order("created_at", { ascending: false }),
-    supabase.from("cbt_questions").select("*").order("sort_order", { ascending: true }),
-    supabase.from("cbt_options").select("*").order("sort_order", { ascending: true }),
-    supabase.from("cbt_attempts").select("*").order("created_at", { ascending: false }),
-  ]);
+  const userRes = await supabase.auth.getUser();
+  const userId = userRes.data.user?.id;
+
+  if (!userId) throw new Error("You must be logged in.");
+
+  const profileRes = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileRes.error) throw profileRes.error;
+
+  const role = (profileRes.data as any)?.role;
+
+  let examQuery = supabase
+    .from("cbt_exams")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (role === "instructor") {
+    examQuery = examQuery.eq("instructor_id", userId);
+  }
+
+  const examsRes = await examQuery;
 
   if (examsRes.error) throw examsRes.error;
+
+  const exams = examsRes.data ?? [];
+  const examIds = exams.map((exam: any) => exam.id);
+
+  if (!examIds.length) {
+    return {
+      exams: [],
+      questions: [],
+      options: [],
+      attempts: [],
+    };
+  }
+
+  const [questionsRes, attemptsRes] = await Promise.all([
+    supabase
+      .from("cbt_questions")
+      .select("*")
+      .in("exam_id", examIds)
+      .order("sort_order", { ascending: true }),
+
+    supabase
+      .from("cbt_attempts")
+      .select("*")
+      .in("exam_id", examIds)
+      .order("created_at", { ascending: false }),
+  ]);
+
   if (questionsRes.error) throw questionsRes.error;
-  if (optionsRes.error) throw optionsRes.error;
   if (attemptsRes.error) throw attemptsRes.error;
 
+  const questionIds = (questionsRes.data ?? []).map((question: any) => question.id);
+
+  let optionRows: any[] = [];
+
+  if (questionIds.length) {
+    const optionsRes = await supabase
+      .from("cbt_options")
+      .select("*")
+      .in("question_id", questionIds)
+      .order("sort_order", { ascending: true });
+
+    if (optionsRes.error) throw optionsRes.error;
+
+    optionRows = optionsRes.data ?? [];
+  }
+
   return {
-    exams: examsRes.data ?? [],
+    exams,
     questions: questionsRes.data ?? [],
-    options: optionsRes.data ?? [],
+    options: optionRows,
     attempts: attemptsRes.data ?? [],
   };
 }
@@ -85,6 +146,7 @@ export async function saveCbtExam(input: CbtExamInput) {
     .from("cbt_exams")
     .insert({
       title: input.title.trim(),
+      instructor_id: (await supabase.auth.getUser()).data.user?.id,
       description: input.description?.trim() || null,
       course_id: input.courseId,
       group_id: input.groupId,
@@ -162,7 +224,23 @@ export async function updateCbtExamStatus(examId: string, status: CbtExamStatus)
 
 
 export async function loadStudentCbtData(groupIds: string[]) {
-  if (!groupIds.length) {
+  const userRes = await supabase.auth.getUser();
+  const userId = userRes.data.user?.id;
+
+  if (!userId) throw new Error("You must be logged in.");
+
+  const membershipRes = await (supabase as any)
+    .from("group_students")
+    .select("*")
+    .eq("student_id", userId);
+
+  const membershipGroupIds = (membershipRes.data ?? [])
+    .map((row: any) => row.group_id || row.groupId)
+    .filter(Boolean);
+
+  const finalGroupIds = Array.from(new Set([...(groupIds ?? []), ...membershipGroupIds]));
+
+  if (!finalGroupIds.length) {
     return {
       exams: [],
       questions: [],
@@ -171,11 +249,6 @@ export async function loadStudentCbtData(groupIds: string[]) {
     };
   }
 
-  const userRes = await supabase.auth.getUser();
-  const userId = userRes.data.user?.id;
-
-  if (!userId) throw new Error("You must be logged in.");
-
   const now = new Date().toISOString();
 
   const [examsRes, attemptsRes] = await Promise.all([
@@ -183,7 +256,7 @@ export async function loadStudentCbtData(groupIds: string[]) {
       .from("cbt_exams")
       .select("*")
       .eq("status", "published")
-      .in("group_id", groupIds)
+      .in("group_id", finalGroupIds)
       .or("start_at.is.null,start_at.lte." + now)
       .or("end_at.is.null,end_at.gte." + now)
       .order("created_at", { ascending: false }),
@@ -392,3 +465,4 @@ export async function submitCbtAttempt(
 
   return updatedAttempt;
 }
+
