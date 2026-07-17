@@ -1277,3 +1277,13 @@ export async function deleteCourse(courseId: string) {
 
   return true;
 }
+
+export async function deleteProgram(programId: string) {
+  const { error } = await (supabase as any).rpc("delete_unused_program", {
+    p_program_id: programId,
+  });
+
+  if (error) throw error;
+
+  return true;
+}
