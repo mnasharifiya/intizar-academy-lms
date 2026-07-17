@@ -24,6 +24,7 @@ export type CbtExamInput = {
   status: CbtExamStatus;
   shuffleQuestions: boolean;
   showResultImmediately: boolean;
+  gradeComponentType?: string;
   questions: CbtQuestionInput[];
 };
 
@@ -157,6 +158,7 @@ export async function saveCbtExam(input: CbtExamInput) {
       status: input.status,
       shuffle_questions: input.shuffleQuestions,
       show_result_immediately: input.showResultImmediately,
+      grade_component_type: input.gradeComponentType || "quiz",
       total_points: totalPoints,
       updated_at: new Date().toISOString(),
     })

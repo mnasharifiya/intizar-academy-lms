@@ -440,6 +440,7 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
         status: "draft",
         shuffleQuestions: false,
         showResultImmediately: true,
+        gradeComponentType: "quiz",
       });
       setExamQuestions([emptyQuestion()]);
 
@@ -1046,6 +1047,16 @@ const filterGrid = {
   gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
   gap: 10,
   marginTop: 10,
+};
+
+const inputStyle = {
+  width: "100%",
+  border: "1px solid #dbe3ef",
+  borderRadius: 10,
+  padding: "10px 11px",
+  fontWeight: 700,
+  boxSizing: "border-box" as const,
+  background: "#ffffff",
 };
 
 const filterInput = {
