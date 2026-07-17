@@ -13,6 +13,7 @@ import AdminCertificates from "./pages/admin/Certificates";
 import AdminAssessmentScheme from "./pages/admin/AssessmentScheme";
 import AdminSettings from "./pages/admin/Settings";
 import InstructorScoreEntry from "./pages/instructor/ScoreEntry";
+import InstructorCbtExamsPage from "./pages/instructor/CbtExams";
 import StudentDashboard from "./pages/student/Dashboard";
 import StudentGrades from "./pages/student/Grades";
 import StudentLearning from "./pages/student/Learning";
@@ -259,7 +260,9 @@ function App() {
 
     if (currentUser.role === "instructor") {
       if (page === "score-entry") return <InstructorScoreEntry user={currentUser} data={scopedData} />;
+    if (page === "cbt-exams") return <InstructorCbtExamsPage data={scopedData} />;
       if (page === "teaching") return <InstructorTeaching user={currentUser} data={scopedData} setData={setData} />;
+    if (page === "cbt-exams") return <InstructorCbtExamsPage data={scopedData} />;
       if (page === "groups") return <InstructorGroups user={currentUser} data={scopedData} />;
       if (page === "assignments") return <InstructorAssignments user={currentUser} data={scopedData} setData={setData} />;
       if (page === "attendance") return <InstructorAttendance user={currentUser} data={scopedData} setData={setData} />;

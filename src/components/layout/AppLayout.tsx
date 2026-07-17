@@ -32,7 +32,9 @@ const adminNav = [
 const instructorNav = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "score-entry", label: "Score Entry", icon: Users },
+  { id: "cbt-exams", label: "CBT Exams", icon: ClipboardList },
     { id: "teaching", label: "Teaching", icon: BookOpen },
+  { id: "cbt-exams", label: "CBT Exams", icon: ClipboardList },
   { id: "groups", label: "My Groups", icon: Layers },
   { id: "assignments", label: "Assignments", icon: ClipboardList },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
