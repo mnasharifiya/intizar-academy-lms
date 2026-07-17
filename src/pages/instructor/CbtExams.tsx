@@ -109,11 +109,31 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
     }
   }
 
+  const [resultExamFilter, setResultExamFilter] = useState("");
+  const [resultProgramFilter, setResultProgramFilter] = useState("");
+  const [resultGroupFilter, setResultGroupFilter] = useState("");
+  const [resultDateFrom, setResultDateFrom] = useState("");
+  const [resultDateTo, setResultDateTo] = useState("");
+
+  function programName(id: string) {
+    const levels = data?.levels ?? data?.programs ?? [];
+    const program = levels.find((item: any) => item.id === id);
+
+    return program?.name || program?.title || "-";
+  }
+
+  function groupProgramId(groupId: string) {
+    const group = groups.find((item: any) => item.id === groupId);
+
+    return group?.level_id || group?.levelId || group?.program_id || group?.programId || "";
+  }
+
   function resultRows() {
-    return attempts
+    const rows = attempts
       .filter((attempt: any) => attempt.status === "submitted")
       .map((attempt: any) => {
         const exam = exams.find((item: any) => item.id === attempt.exam_id);
+        const programId = exam ? groupProgramId(exam.group_id) : "";
 
         return {
           attempt,
@@ -122,13 +142,87 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
           examTitle: exam?.title || "Unknown exam",
           course: exam ? courseName(exam.course_id) : "-",
           group: exam ? groupName(exam.group_id) : "-",
+          groupId: exam?.group_id || "",
+          programId,
+          program: programId ? programName(programId) : "-",
           score: Number(attempt.score || 0),
           total: Number(attempt.total_points || 0),
           percentage: Number(attempt.percentage || 0),
           submittedAt: attempt.submitted_at || attempt.created_at,
         };
+      });
+
+    return rows
+      .filter((row: any) => !resultExamFilter || row.exam?.id === resultExamFilter)
+      .filter((row: any) => !resultProgramFilter || row.programId === resultProgramFilter)
+      .filter((row: any) => !resultGroupFilter || row.groupId === resultGroupFilter)
+      .filter((row: any) => {
+        if (!resultDateFrom) return true;
+        if (!row.submittedAt) return false;
+
+        return new Date(row.submittedAt) >= new Date(resultDateFrom + "T00:00:00");
+      })
+      .filter((row: any) => {
+        if (!resultDateTo) return true;
+        if (!row.submittedAt) return false;
+
+        return new Date(row.submittedAt) <= new Date(resultDateTo + "T23:59:59");
       })
       .sort((a: any, b: any) => String(b.submittedAt || "").localeCompare(String(a.submittedAt || "")));
+  }
+
+  function ResultFilters() {
+    const levels = data?.levels ?? data?.programs ?? [];
+
+    return (
+      <div style={filterBox}>
+        <strong>Filter CBT Results</strong>
+
+        <div style={filterGrid}>
+          <select style={filterInput} value={resultExamFilter} onChange={(e: any) => setResultExamFilter(e.target.value)}>
+            <option value="">All exams</option>
+            {exams.map((exam: any) => (
+              <option key={exam.id} value={exam.id}>{exam.title}</option>
+            ))}
+          </select>
+
+          <select style={filterInput} value={resultProgramFilter} onChange={(e: any) => setResultProgramFilter(e.target.value)}>
+            <option value="">All programs</option>
+            {levels.map((program: any) => (
+              <option key={program.id} value={program.id}>{program.name || program.title}</option>
+            ))}
+          </select>
+
+          <select style={filterInput} value={resultGroupFilter} onChange={(e: any) => setResultGroupFilter(e.target.value)}>
+            <option value="">All groups</option>
+            {groups.map((group: any) => (
+              <option key={group.id} value={group.id}>{group.name || group.title}</option>
+            ))}
+          </select>
+
+          <input style={filterInput} type="date" value={resultDateFrom} onChange={(e: any) => setResultDateFrom(e.target.value)} />
+          <input style={filterInput} type="date" value={resultDateTo} onChange={(e: any) => setResultDateTo(e.target.value)} />
+
+          <button
+            type="button"
+            style={lightBtn}
+            onClick={() => {
+              setResultExamFilter("");
+              setResultProgramFilter("");
+              setResultGroupFilter("");
+              setResultDateFrom("");
+              setResultDateTo("");
+            }}
+          >
+            Clear Filters
+          </button>
+        </div>
+
+        <p style={{ color: C.muted, marginBottom: 0 }}>
+          Showing {resultRows().length} submitted CBT result(s).
+        </p>
+      </div>
+    );
   }
 
   function downloadCbtResults() {
@@ -153,13 +247,14 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
       "<div class='generated'>Generated: " + new Date().toLocaleString() + "</div></div>" +
       "</div>" +
       "<table><thead><tr>" +
-      "<th>S/N</th><th>Student</th><th>Exam</th><th>Course</th><th>Group</th><th>Score</th><th>Total</th><th>Percentage</th><th>Submitted At</th>" +
+      "<th>S/N</th><th>Student</th><th>Exam</th><th>Program</th><th>Course</th><th>Group</th><th>Score</th><th>Total</th><th>Percentage</th><th>Submitted At</th>" +
       "</tr></thead><tbody>" +
       rows.map((row: any, index: number) =>
         "<tr>" +
         "<td>" + (index + 1) + "</td>" +
         "<td>" + escapeCell(row.student) + "</td>" +
         "<td>" + escapeCell(row.examTitle) + "</td>" +
+        "<td>" + escapeCell(row.program) + "</td>" +
         "<td>" + escapeCell(row.course) + "</td>" +
         "<td>" + escapeCell(row.group) + "</td>" +
         "<td>" + row.score + "</td>" +
@@ -404,6 +499,8 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
             Admin can view and download submitted CBT results only. Exam creation is restricted to instructors.
           </p>
 
+          <ResultFilters />
+
           <div style={{ marginBottom: 12 }}>
             <button type="button" onClick={downloadCbtResults} style={greenBtn}>
               Download CBT Results
@@ -421,6 +518,7 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
                   <tr>
                     <th style={th}>Student</th>
                     <th style={th}>Exam</th>
+                    <th style={th}>Program</th>
                     <th style={th}>Course</th>
                     <th style={th}>Group</th>
                     <th style={th}>Score</th>
@@ -433,6 +531,7 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
                     <tr key={row.attempt.id}>
                       <td style={td}>{row.student}</td>
                       <td style={td}>{row.examTitle}</td>
+                      <td style={td}>{row.program}</td>
                       <td style={td}>{row.course}</td>
                       <td style={td}>{row.group}</td>
                       <td style={td}>{row.score} / {row.total}</td>
@@ -690,7 +789,9 @@ export default function InstructorCbtExamsPage({ data, adminResultsOnly = false 
           View submitted CBT attempts and download official result sheet.
         </p>
 
-        <div style={{ marginBottom: 12 }}>
+        <ResultFilters />
+
+          <div style={{ marginBottom: 12 }}>
           <button type="button" onClick={downloadCbtResults} style={greenBtn}>
             Download CBT Results
           </button>
@@ -908,6 +1009,41 @@ const smallDanger = {
   ...dangerBtn,
   padding: "6px 9px",
   fontSize: 12,
+};
+
+const lightBtn = {
+  border: "1px solid #dbe3ef",
+  background: "#ffffff",
+  color: C.dark,
+  borderRadius: 10,
+  padding: "10px 12px",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const filterBox = {
+  border: "1px solid #dbe3ef",
+  borderRadius: 14,
+  padding: 14,
+  background: "#f8fafc",
+  marginBottom: 14,
+};
+
+const filterGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: 10,
+  marginTop: 10,
+};
+
+const filterInput = {
+  width: "100%",
+  border: "1px solid #dbe3ef",
+  borderRadius: 10,
+  padding: "10px 11px",
+  fontWeight: 700,
+  boxSizing: "border-box" as const,
+  background: "#ffffff",
 };
 
 const resultTable = {
