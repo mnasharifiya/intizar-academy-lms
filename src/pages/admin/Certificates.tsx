@@ -847,6 +847,37 @@ async function printCertificate(cert: CertificateRecord) {
     margin: 1,
   });
 
+  const autoCheck = cert.eligibilitySnapshot?.autoCheck || {};
+  const legacyCheck = cert.eligibilitySnapshot?.legacyCheck || {};
+
+  const completedProgram = autoCheck?.program?.name || cert.programName || "-";
+  const regNoText = autoCheck?.student?.reg_no || cert.regNo || "-";
+  const branchText = autoCheck?.student?.branch || cert.branch || "-";
+  const zoneText = autoCheck?.student?.zone || cert.zone || "-";
+
+  const averageValue = autoCheck?.overall_average ?? legacyCheck?.average ?? null;
+  const averageNumber = Number(averageValue || 0);
+
+  const cgpaValue = autoCheck?.cgpa ?? (
+    averageValue !== null && averageValue !== undefined && !Number.isNaN(Number(averageValue))
+      ? (Number(averageValue) / 100) * 5
+      : null
+  );
+
+  const cgpaText =
+    cgpaValue === null || cgpaValue === undefined || Number.isNaN(Number(cgpaValue))
+      ? "-"
+      : Number(cgpaValue).toFixed(2);
+
+  const classText =
+    autoCheck?.class_of_completion ||
+    (
+      averageNumber >= 90 ? "First Class" :
+      averageNumber >= 80 ? "Second Class" :
+      averageNumber >= 70 ? "Third Class" :
+      "Not eligible"
+    );
+
   doc.open();
   doc.write(`
     <html>
@@ -856,8 +887,8 @@ async function printCertificate(cert: CertificateRecord) {
           @page { size: A4 landscape; margin: 0; }
           body { margin: 0; background: #f1f5f9; font-family: Georgia, "Times New Roman", serif; color: #111827; }
           .print-button { position: fixed; top: 14px; right: 14px; z-index: 20; padding: 10px 16px; font-weight: bold; border: 0; background: #166534; color: #fff; border-radius: 10px; cursor: pointer; }
-          .page { width: 297mm; height: 210mm; margin: 0 auto; background: #fff; position: relative; overflow: hidden; box-sizing: border-box; padding: 18mm; }
-          .border { border: 5px double #166534; height: 100%; box-sizing: border-box; padding: 12mm; position: relative; }
+          .page { width: 297mm; height: 210mm; margin: 0 auto; background: #fff; position: relative; overflow: hidden; box-sizing: border-box; padding: 12mm; }
+          .border { border: 5px double #166534; height: 100%; box-sizing: border-box; padding: 9mm 11mm; position: relative; }
           .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.055; z-index: 0; }
           .watermark img { width: 380px; height: 380px; object-fit: contain; }
           .content { position: relative; z-index: 2; text-align: center; }
@@ -874,7 +905,7 @@ async function printCertificate(cert: CertificateRecord) {
           .meta-card { border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 12px; padding: 10px 12px; font-size: 12px; }
           .meta-label { color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 10px; }
           .meta-value { margin-top: 4px; color: #052e16; font-weight: bold; word-break: break-word; }
-          .qr-section { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 20px; font-family: Arial, sans-serif; }
+          .qr-section { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; font-family: Arial, sans-serif; }
           .qr-section img { width: 92px; height: 92px; border: 1px solid #bbf7d0; padding: 6px; border-radius: 10px; background: #fff; }
           .qr-text { text-align: left; max-width: 360px; font-size: 12px; color: #475569; line-height: 1.5; }
           .qr-text strong { color: #052e16; display: block; font-size: 13px; margin-bottom: 4px; }
@@ -907,26 +938,29 @@ async function printCertificate(cert: CertificateRecord) {
               <div class="student-name">${escapeHtml(cert.studentName)}</div>
 
               <div class="body-text">
-                for successfully completing the requirements of
-                <span class="program">${escapeHtml(cert.programName)}</span>
-                under ${CERTIFICATE_SETTINGS.organizationName}, having satisfied the approved assessment,
-                payment, and administrative conditions for certification.
+                This is to certify that the above-named student has successfully completed the
+                <span class="program">${escapeHtml(completedProgram)}</span>
+                under ${escapeHtml(CERTIFICATE_SETTINGS.organizationName)}, and has met the approved academic
+                requirements for the award of this certificate.
               </div>
 
               <div class="meta-grid">
-                <div class="meta-card"><div class="meta-label">Registration No</div><div class="meta-value">${escapeHtml(cert.regNo || "-")}</div></div>
+                <div class="meta-card"><div class="meta-label">Registration No</div><div class="meta-value">${escapeHtml(regNoText)}</div></div>
+                <div class="meta-card"><div class="meta-label">Program Completed</div><div class="meta-value">${escapeHtml(completedProgram)}</div></div>
+                <div class="meta-card"><div class="meta-label">Branch</div><div class="meta-value">${escapeHtml(branchText)}</div></div>
+                <div class="meta-card"><div class="meta-label">Zone</div><div class="meta-value">${escapeHtml(zoneText)}</div></div>
+                <div class="meta-card"><div class="meta-label">CGPA</div><div class="meta-value">${escapeHtml(cgpaText)} / 5.00</div></div>
+                <div class="meta-card"><div class="meta-label">Class of Completion</div><div class="meta-value">${escapeHtml(classText)}</div></div>
                 <div class="meta-card"><div class="meta-label">Certificate No</div><div class="meta-value">${escapeHtml(cert.certificateNo)}</div></div>
                 <div class="meta-card"><div class="meta-label">Issued Date</div><div class="meta-value">${escapeHtml(issuedDate)}</div></div>
-                <div class="meta-card"><div class="meta-label">Branch</div><div class="meta-value">${escapeHtml(cert.branch || "-")}</div></div>
-                <div class="meta-card"><div class="meta-label">Zone</div><div class="meta-value">${escapeHtml(cert.zone || "-")}</div></div>
-                <div class="meta-card"><div class="meta-label">Verification Token</div><div class="meta-value">${escapeHtml(cert.verificationToken)}</div></div>
               </div>
 
               <div class="qr-section">
                 <img src="${qrDataUrl}" />
                 <div class="qr-text">
-                  <strong>Scan to verify this certificate</strong>
-                  This QR code opens the official INTIZAR certificate verification page.
+                  <strong>Official Verification</strong>
+                  Scan the QR code or verify using the certificate number and verification token.
+                  <div><strong>Token:</strong> ${escapeHtml(cert.verificationToken)}</div>
                   <div class="verify-url">${escapeHtml(verifyUrl)}</div>
                 </div>
               </div>
@@ -934,7 +968,7 @@ async function printCertificate(cert: CertificateRecord) {
               <div class="signature-row">
                 <div class="signature">
                   <img src="${CERTIFICATE_SETTINGS.secretarySignatureUrl}" onerror="this.style.display='none'" />
-                  <div class="sig-line">Secretary Signature</div>
+                  <div class="sig-line">INTIZAR Secretary Signature</div>
                 </div>
 
                 <div class="seal">
