@@ -949,32 +949,29 @@ async function printCertificate(cert: CertificateRecord) {
             margin: 0 auto 2px;
           }
 
-          .official-name-img {
-            width: 245px;
-            max-height: 58px;
-            object-fit: contain;
-            display: block;
-            margin: 0 auto 1px;
-          }
-
-          .official-name-fallback {
-            font-size: 22px;
-            font-weight: 900;
-            color: #059669;
-            line-height: 1.1;
-          }
-
-          .official-name-fallback span {
-            color: #1e3a8a;
-            font-size: 15px;
-          }
-
-          .org-en {
-            font-size: 12px;
-            font-weight: 800;
-            color: #052e16;
-            margin-top: 1px;
-          }
+          .org-ar {
+  font-size: 30px;
+  font-weight: 900;
+  color: #059669;
+  line-height: 1.1;
+  margin-top: 4px;
+  text-align: center;
+}
+.org-sub-ar {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e3a8a;
+  line-height: 1.1;
+  margin-top: 2px;
+  text-align: center;
+}
+.org-en {
+  font-size: 15px;
+  font-weight: 800;
+  color: #052e16;
+  margin-top: 6px;
+  text-align: center;
+}
 
           .cert-title {
             margin-top: 3px;
@@ -1223,24 +1220,14 @@ async function printCertificate(cert: CertificateRecord) {
                 </div>
 
                 <div class="signature-row">
-                  <div class="signature">
-                    <img src="/certificates/intizar-secretary-signature.png" onerror="this.style.display='none'" />
-                    <div class="sig-line">INTIZAR Secretary</div>
-                  </div>
+  <div class="signature signature-single">
+    <div class="signature-name">Ali A Muhammad</div>
+    <div class="signature-role">INTIZAR Secretary</div>
+    <div class="sig-line"></div>
+  </div>
+</div>
 
-                  <div class="seal">
-                    <img src="${CERTIFICATE_SETTINGS.sealUrl}" onerror="this.style.display='none'" />
-                    <div>Official Seal</div>
-                  </div>
-
-                  <div class="signature">
-                    <img src="${CERTIFICATE_SETTINGS.directorSignatureUrl}" onerror="this.style.display='none'" />
-                    <div class="sig-line">Director / Coordinator</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="footer">
+<div class="footer">
                 <div>Status: VALID</div>
                 <div>Verify using Certificate No and Verification Token</div>
               </div>
@@ -1300,6 +1287,7 @@ const remedialBox: CSSProperties = {border:"1px solid #fde68a",background:"#fffb
 const refresherBox: CSSProperties = {border:"1px solid #fed7aa",background:"#fff7ed",borderRadius:14,padding:14,marginTop:16,color:"#9a3412",lineHeight:1.6};
 const certBox: CSSProperties = {border:"1px solid #bbf7d0",background:"#f0fdf4",borderRadius:14,padding:14,marginTop:16,color:"#166534",lineHeight:1.6};
 const emptyState: CSSProperties = {minHeight:120,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",color:C.muted};
+
 
 
 
