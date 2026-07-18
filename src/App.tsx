@@ -1,5 +1,8 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import LoginPage from "./pages/auth/LoginPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
+import ChangePasswordPage from "./pages/common/ChangePasswordPage";
 import ApplicationForm from "./pages/public/ApplicationForm";
 import CertificateVerify from "./pages/public/CertificateVerify";
 import AppLayout from "./components/layout/AppLayout";
@@ -190,8 +193,20 @@ return {
 function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [page, setPage] = useState("dashboard");
-  const [publicPage, setPublicPage] = useState<"login" | "apply" | "verify">(() => {
+  const [publicPage, setPublicPage] = useState<"login" | "apply" | "verify" | "forgot" | "reset">(() => {
     const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+    if (
+      window.location.pathname === "/reset-password" ||
+      params.get("resetPassword") === "1" ||
+      params.get("type") === "recovery" ||
+      hashParams.get("type") === "recovery" ||
+      hashParams.has("access_token")
+    ) {
+      return "reset";
+    }
+
     return params.get("verifyCertificate") === "1" ? "verify" : "login";
   });
   const [data, setData] = useState<any>({
@@ -231,6 +246,14 @@ function App() {
   }, [currentUser]);
 
   if (!currentUser) {
+    if (publicPage === "reset") {
+      return <ResetPasswordPage onBackToLogin={() => setPublicPage("login")} />;
+    }
+
+    if (publicPage === "forgot") {
+      return <ForgotPasswordPage onBackToLogin={() => setPublicPage("login")} />;
+    }
+
     if (publicPage === "apply") {
       return <ApplicationForm onBackToLogin={() => setPublicPage("login")} />;
     }
@@ -244,11 +267,13 @@ function App() {
         onLogin={handleLogin}
         onApply={() => setPublicPage("apply")}
         onVerify={() => setPublicPage("verify")}
+        onForgotPassword={() => setPublicPage("forgot")}
       />
     );
   }
 
   function renderPage() {
+    if (page === "change-password") return <ChangePasswordPage />;
     if (currentUser.role === "student") {
       if (page === "courses") return <StudentLearning user={currentUser} data={scopedData} />;
       if (page === "assignments") return <StudentAssignments user={currentUser} data={scopedData} setData={setData} />;
@@ -295,6 +320,7 @@ function App() {
       user={currentUser}
       page={page}
       setPage={setPage}
+      onChangePassword={() => setPage("change-password")}
       onLogout={() => setCurrentUser(null)}
     >
       {renderPage()}

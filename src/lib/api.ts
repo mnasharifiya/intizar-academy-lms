@@ -1296,3 +1296,36 @@ export async function mergeDuplicatePrograms() {
 
   return data ?? [];
 }
+
+
+export async function requestPasswordReset(email: string) {
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (!cleanEmail) {
+    throw new Error("Please enter your email address.");
+  }
+
+  const redirectTo = `${window.location.origin}/?resetPassword=1`;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+    redirectTo,
+  });
+
+  if (error) throw error;
+  return true;
+}
+
+export async function changeCurrentUserPassword(newPassword: string) {
+  const password = newPassword.trim();
+
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters.");
+  }
+
+  const { data, error } = await supabase.auth.updateUser({
+    password,
+  });
+
+  if (error) throw error;
+  return data;
+}

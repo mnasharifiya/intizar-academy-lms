@@ -3,7 +3,7 @@ import { Button, Input } from "../../components/common/ui";
 import { C, APP_NAME } from "../../lib/theme";
 import { signIn } from "../../lib/api";
 
-export default function LoginPage({ onLogin, onApply, onVerify }: { onLogin: (user: any) => void; onApply?: () => void; onVerify?: () => void }) {
+export default function LoginPage({ onLogin, onApply, onVerify, onForgotPassword }: { onLogin: (user: any) => void; onApply?: () => void; onVerify?: () => void; onForgotPassword?: () => void }) {
   const [email, setEmail] = useState("admin@intizar.edu");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -109,12 +109,31 @@ export default function LoginPage({ onLogin, onApply, onVerify }: { onLogin: (us
             </div>
           </div>
 
-          <div style={{marginBottom:20}}>
+          <div style={{marginBottom:10}}>
             <label style={{fontSize:13,fontWeight:700,color:C.text}}>Password</label>
             <div style={{marginTop:6}}>
               <Input value={password} onChange={setPassword} placeholder="Enter password" type="password" />
             </div>
           </div>
+
+          {onForgotPassword && (
+            <button
+              type="button"
+              onClick={onForgotPassword}
+              style={{
+                border:0,
+                background:"transparent",
+                color:"#166534",
+                fontWeight:800,
+                cursor:"pointer",
+                padding:0,
+                margin:"0 0 18px",
+                textAlign:"left",
+              }}
+            >
+              Forgot password?
+            </button>
+          )}
 
           <div style={{display:"grid",gap:10}}>
             <Button type="submit" disabled={loading}>

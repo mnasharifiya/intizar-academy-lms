@@ -59,12 +59,14 @@ export default function AppLayout({
   page,
   setPage,
   onLogout,
+  onChangePassword,
   children,
 }: {
   user: any;
   page: string;
   setPage: (page: string) => void;
   onLogout: () => void;
+  onChangePassword?: () => void;
   children: ReactNode;
 }) {
   const role = String(user?.role || "").toLowerCase();
@@ -184,6 +186,23 @@ export default function AppLayout({
               <div style={{fontWeight:900,color:C.text,fontSize:14}}>{user?.name}</div>
               <div style={{fontSize:12,color:C.muted,textTransform:"capitalize"}}>{role}</div>
             </div>
+
+            {onChangePassword && (
+              <button
+                onClick={onChangePassword}
+                style={{
+                  border:"1px solid #bbf7d0",
+                  background:"#f0fdf4",
+                  color:"#166534",
+                  borderRadius:12,
+                  padding:"10px 12px",
+                  fontWeight:900,
+                  cursor:"pointer",
+                }}
+              >
+                Change Password
+              </button>
+            )}
 
             <button
               onClick={onLogout}
