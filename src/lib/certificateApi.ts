@@ -66,7 +66,12 @@ export function makeCertificateNo(input: {
   const year = new Date().getFullYear();
   const reg = safeCode(input.regNo || "NO-REG");
   const program = safeCode(input.programName || "PROGRAM").slice(0, 4);
-  return `INT-CERT-${year}-${reg}-${program}`;
+
+  // Certificate numbers must remain unique even if an old certificate was revoked.
+  const timePart = Date.now().toString(36).slice(-5).toUpperCase();
+  const randomPart = Math.random().toString(36).slice(2, 5).toUpperCase();
+
+  return `INT-CERT-${year}-${reg}-${program}-${timePart}${randomPart}`;
 }
 
 export async function loadCertificates(): Promise<CertificateRecord[]> {
