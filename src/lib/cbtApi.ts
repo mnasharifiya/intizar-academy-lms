@@ -239,163 +239,38 @@ export async function loadStudentCbtData(_groupIds: string[]) {
 }
 
 export async function startCbtAttempt(examId: string) {
-  const userRes = await supabase.auth.getUser();
-  const userId = userRes.data.user?.id;
-
-  if (!userId) throw new Error("You must be logged in.");
-
-  const { data: exam, error: examError } = await supabase
-    .from("cbt_exams")
-    .select("*")
-    .eq("id", examId)
-    .single();
-
-  if (examError) throw examError;
-
-  if ((exam as any).status !== "published") {
-    throw new Error("This exam is not published.");
-  }
-
-  const now = new Date();
-
-  if ((exam as any).start_at && now < new Date((exam as any).start_at)) {
-    throw new Error("This exam has not started yet.");
-  }
-
-  if ((exam as any).end_at && now > new Date((exam as any).end_at)) {
-    throw new Error("This exam has ended.");
-  }
-
-  const { data: previousAttempts, error: attemptsError } = await supabase
-    .from("cbt_attempts")
-    .select("*")
-    .eq("exam_id", examId)
-    .eq("student_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (attemptsError) throw attemptsError;
-
-  const existingInProgress = (previousAttempts ?? []).find((attempt: any) => attempt.status === "in_progress");
-
-  if (existingInProgress) return existingInProgress;
-
-  const submittedCount = (previousAttempts ?? []).filter((attempt: any) => attempt.status === "submitted").length;
-
-  if (submittedCount >= Number((exam as any).attempts_allowed || 1)) {
-    throw new Error("You have already used your allowed attempt(s) for this exam.");
-  }
-
-  const { data: attempt, error } = await supabase
-    .from("cbt_attempts")
-    .insert({
-      exam_id: examId,
-      student_id: userId,
-      total_points: Number((exam as any).total_points || 0),
-      status: "in_progress",
-    })
-    .select("*")
-    .single();
+  const { data, error } = await (supabase as any).rpc("start_cbt_attempt_secure", {
+    p_exam_id: examId,
+  });
 
   if (error) throw error;
 
-  return attempt;
+  return data?.attempt ?? data;
 }
 
 export async function submitCbtAttempt(
   attemptId: string,
-  answers: { questionId: string; selectedOptionId: string }[]
+  answers:
+    | Record<string, string>
+    | Array<{ questionId: string; selectedOptionId: string }>
 ) {
-  const userRes = await supabase.auth.getUser();
-  const userId = userRes.data.user?.id;
+  const answersByQuestionId = Array.isArray(answers)
+    ? answers.reduce((acc: Record<string, string>, row: any) => {
+        if (row?.questionId && row?.selectedOptionId) {
+          acc[row.questionId] = row.selectedOptionId;
+        }
 
-  if (!userId) throw new Error("You must be logged in.");
+        return acc;
+      }, {})
+    : answers || {};
 
-  const { data: attempt, error: attemptError } = await supabase
-    .from("cbt_attempts")
-    .select("*")
-    .eq("id", attemptId)
-    .single();
-
-  if (attemptError) throw attemptError;
-
-  if ((attempt as any).student_id !== userId) {
-    throw new Error("This attempt does not belong to you.");
-  }
-
-  if ((attempt as any).status !== "in_progress") {
-    throw new Error("This attempt is already submitted.");
-  }
-
-  const { data: questions, error: questionsError } = await supabase
-    .from("cbt_questions")
-    .select("*")
-    .eq("exam_id", (attempt as any).exam_id);
-
-  if (questionsError) throw questionsError;
-
-  const questionIds = (questions ?? []).map((question: any) => question.id);
-
-  const { data: options, error: optionsError } = await supabase
-    .from("cbt_options")
-    .select("*")
-    .in("question_id", questionIds);
-
-  if (optionsError) throw optionsError;
-
-  const answerRows = (questions ?? []).map((question: any) => {
-    const selected = answers.find(answer => answer.questionId === question.id);
-    const selectedOption = (options ?? []).find((option: any) => option.id === selected?.selectedOptionId);
-    const isCorrect = Boolean((selectedOption as any)?.is_correct);
-    const pointsAwarded = isCorrect ? Number(question.points || 0) : 0;
-
-    return {
-      attempt_id: attemptId,
-      question_id: question.id,
-      selected_option_id: selected?.selectedOptionId || null,
-      is_correct: isCorrect,
-      points_awarded: pointsAwarded,
-    };
-  });
-
-  if (answerRows.length) {
-    const { error: answersError } = await supabase
-      .from("cbt_answers")
-      .upsert(answerRows, {
-        onConflict: "attempt_id,question_id",
-      });
-
-    if (answersError) throw answersError;
-  }
-
-  const totalPoints = (questions ?? []).reduce((sum: number, question: any) => sum + Number(question.points || 0), 0);
-  const score = answerRows.reduce((sum: number, row: any) => sum + Number(row.points_awarded || 0), 0);
-  const percentage = totalPoints > 0 ? Math.round((score / totalPoints) * 10000) / 100 : 0;
-
-  const { data: updatedAttempt, error: updateError } = await supabase
-    .from("cbt_attempts")
-    .update({
-      submitted_at: new Date().toISOString(),
-      score,
-      total_points: totalPoints,
-      percentage,
-      status: "submitted",
-    })
-    .eq("id", attemptId)
-    .select("*")
-    .single();
-
-  if (updateError) throw updateError;
-
-  // Sync submitted CBT score into the main Student Grades system.
-  // If sync fails, do not block the student submission.
-  const { error: syncError } = await (supabase as any).rpc("sync_cbt_attempt_to_grade", {
+  const { data, error } = await (supabase as any).rpc("submit_cbt_attempt_secure", {
     p_attempt_id: attemptId,
+    p_answers: answersByQuestionId,
   });
 
-  if (syncError) {
-    console.warn("CBT grade sync failed:", syncError.message);
-  }
+  if (error) throw error;
 
-  return updatedAttempt;
+  return data?.attempt ?? data;
 }
 
