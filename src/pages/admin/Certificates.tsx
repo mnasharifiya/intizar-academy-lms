@@ -781,26 +781,16 @@ function certificateVerifyUrl(cert: CertificateRecord) {
 }
 
 async function printCertificate(cert: CertificateRecord) {
-  const iframe = document.createElement("iframe");
+  const win = window.open("", "_blank", "width=1200,height=850");
 
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-
-  document.body.appendChild(iframe);
-
-  const win = iframe.contentWindow;
-  const doc = win?.document;
-
-  if (!win || !doc) {
-    alert("Could not open print dialog. Please try again.");
-    iframe.remove();
+  if (!win) {
+    alert("Popup blocked. Please allow popups for this site, then try Print / Save PDF again.");
     return;
   }
 
+  const doc = win.document;
+
+  doc.open();
   doc.write(`
     <html>
       <body style="font-family:Arial;padding:30px">
@@ -808,7 +798,7 @@ async function printCertificate(cert: CertificateRecord) {
       </body>
     </html>
   `);
-
+  doc.close();
   const issuedDate = new Date(cert.issuedAt).toLocaleDateString();
   const verifyUrl = certificateVerifyUrl(cert);
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
@@ -860,7 +850,7 @@ async function printCertificate(cert: CertificateRecord) {
       </head>
 
       <body>
-        <button class="print-button" onclick="window.print()">Print / Save PDF</button>
+        <button class="print-button" onclick="window.print()">Print / Save as PDF</button>
 
         <div class="page">
           <div class="border">
