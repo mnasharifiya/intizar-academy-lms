@@ -367,11 +367,13 @@ function formatCbtDateTime(value?: string | null) {
 
   try {
     return new Date(value).toLocaleString([], {
+      timeZone: "Africa/Lagos",
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      timeZoneName: "short",
     });
   } catch {
     return String(value);
@@ -383,6 +385,7 @@ function formatCbtDate(value?: string | null) {
 
   try {
     return new Date(value).toLocaleDateString([], {
+      timeZone: "Africa/Lagos",
       year: "numeric",
       month: "short",
       day: "numeric",

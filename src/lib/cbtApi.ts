@@ -2,6 +2,22 @@
 
 export type CbtExamStatus = "draft" | "published" | "closed";
 
+function cbtWatDateTimeToIso(value?: string | null) {
+  if (!value) return null;
+
+  // INTIZAR CBT time is handled as Nigeria/WAT time.
+  // datetime-local gives "YYYY-MM-DDTHH:mm", so we attach +01:00.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+    return new Date(value + ":00+01:00").toISOString();
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) {
+    return new Date(value + "+01:00").toISOString();
+  }
+
+  return new Date(value).toISOString();
+}
+
 export type CbtQuestionInput = {
   questionText: string;
   questionType: "mcq" | "true_false";
@@ -153,8 +169,8 @@ export async function saveCbtExam(input: CbtExamInput) {
       group_id: input.groupId,
       duration_minutes: input.durationMinutes,
       attempts_allowed: input.attemptsAllowed,
-      start_at: input.startAt || null,
-      end_at: input.endAt || null,
+      start_at: cbtWatDateTimeToIso(input.startAt),
+      end_at: cbtWatDateTimeToIso(input.endAt),
       status: input.status,
       shuffle_questions: input.shuffleQuestions,
       show_result_immediately: input.showResultImmediately,
