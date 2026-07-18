@@ -781,14 +781,54 @@ function certificateVerifyUrl(cert: CertificateRecord) {
 }
 
 async function printCertificate(cert: CertificateRecord) {
-  const win = window.open("", "_blank", "width=1200,height=850");
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(15, 23, 42, 0.72)";
+  overlay.style.zIndex = "99999";
+  overlay.style.display = "flex";
+  overlay.style.flexDirection = "column";
 
-  if (!win) {
-    alert("Popup blocked. Please allow popups for this site, then try Print / Save PDF again.");
+  const toolbar = document.createElement("div");
+  toolbar.style.background = "#ffffff";
+  toolbar.style.padding = "10px 14px";
+  toolbar.style.display = "flex";
+  toolbar.style.justifyContent = "space-between";
+  toolbar.style.alignItems = "center";
+  toolbar.style.borderBottom = "1px solid #e2e8f0";
+  toolbar.innerHTML = '<strong>Certificate Preview</strong><span style="color:#64748b;font-size:13px">Use the green Print / Save as PDF button inside the certificate.</span>';
+
+  const closeButton = document.createElement("button");
+  closeButton.textContent = "Close";
+  closeButton.style.padding = "8px 14px";
+  closeButton.style.border = "0";
+  closeButton.style.borderRadius = "10px";
+  closeButton.style.background = "#dc2626";
+  closeButton.style.color = "#fff";
+  closeButton.style.fontWeight = "800";
+  closeButton.style.cursor = "pointer";
+  closeButton.onclick = () => overlay.remove();
+
+  toolbar.appendChild(closeButton);
+
+  const iframe = document.createElement("iframe");
+  iframe.style.width = "100%";
+  iframe.style.height = "100%";
+  iframe.style.border = "0";
+  iframe.style.background = "#ffffff";
+
+  overlay.appendChild(toolbar);
+  overlay.appendChild(iframe);
+  document.body.appendChild(overlay);
+
+  const win = iframe.contentWindow;
+  const doc = win?.document;
+
+  if (!win || !doc) {
+    alert("Could not open certificate preview. Please try again.");
+    overlay.remove();
     return;
   }
-
-  const doc = win.document;
 
   doc.open();
   doc.write(`
@@ -799,6 +839,7 @@ async function printCertificate(cert: CertificateRecord) {
     </html>
   `);
   doc.close();
+
   const issuedDate = new Date(cert.issuedAt).toLocaleDateString();
   const verifyUrl = certificateVerifyUrl(cert);
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
