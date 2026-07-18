@@ -894,6 +894,10 @@ async function printCertificate(cert: CertificateRecord) {
           .content { position: relative; z-index: 2; text-align: center; }
           .logo { width: 86px; height: 86px; object-fit: contain; margin-bottom: 8px; }
           .org { font-size: 26px; font-weight: 900; color: #052e16; letter-spacing: 1px; }
+          .official-name-img { width: 280px; max-height: 74px; object-fit: contain; display: block; margin: 0 auto 2px; }
+          .official-name-fallback { font-size: 24px; font-weight: 900; color: #059669; line-height: 1.15; }
+          .official-name-fallback span { color: #1e3a8a; font-size: 16px; }
+          .org-en { font-size: 14px; font-weight: 800; color: #052e16; margin-top: 2px; }
           .subtitle { font-size: 14px; color: #475569; margin-top: 4px; }
           .cert-title { margin-top: 18px; font-size: 42px; font-weight: 900; color: #166534; letter-spacing: 3px; text-transform: uppercase; }
           .small-title { margin-top: 6px; font-size: 18px; color: #334155; letter-spacing: 1px; }
@@ -905,16 +909,16 @@ async function printCertificate(cert: CertificateRecord) {
           .meta-card { border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 12px; padding: 10px 12px; font-size: 12px; }
           .meta-label { color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 10px; }
           .meta-value { margin-top: 4px; color: #052e16; font-weight: bold; word-break: break-word; }
-          .qr-section { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; font-family: Arial, sans-serif; }
-          .qr-section img { width: 92px; height: 92px; border: 1px solid #bbf7d0; padding: 6px; border-radius: 10px; background: #fff; }
-          .qr-text { text-align: left; max-width: 360px; font-size: 12px; color: #475569; line-height: 1.5; }
+          .qr-section { position: absolute; left: 10mm; bottom: 8mm; width: 42%; display: flex; align-items: center; justify-content: flex-start; gap: 10px; margin-top: 0; font-family: Arial, sans-serif; text-align: left; }
+          .qr-section img { width: 72px; height: 72px; border: 1px solid #bbf7d0; padding: 4px; border-radius: 8px; background: #fff; }
+          .qr-text { text-align: left; max-width: 300px; font-size: 10px; color: #475569; line-height: 1.3; }
           .qr-text strong { color: #052e16; display: block; font-size: 13px; margin-bottom: 4px; }
           .verify-url { word-break: break-all; font-size: 10px; color: #64748b; margin-top: 4px; }
-          .signature-row { display: grid; grid-template-columns: 1fr 120px 1fr; gap: 28px; align-items: end; margin-top: 24px; }
+          .signature-row { position: absolute; right: 10mm; bottom: 8mm; width: 50%; display: grid; grid-template-columns: 1fr 78px 1fr; gap: 12px; align-items: end; margin-top: 0; }
           .signature { text-align: center; font-family: Arial, sans-serif; color: #0f172a; }
-          .signature img { height: 56px; object-fit: contain; margin-bottom: 4px; }
+          .signature img { height: 56px; max-width: 170px; object-fit: contain; margin-bottom: 2px; }
           .sig-line { border-top: 2px solid #111827; padding-top: 6px; font-size: 13px; font-weight: bold; }
-          .seal img { width: 110px; height: 110px; object-fit: contain; }
+          .seal img { width: 70px; height: 70px; object-fit: contain; }
           .seal { text-align: center; color: #166534; font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; }
           .footer { position: absolute; bottom: 8mm; left: 18mm; right: 18mm; display: flex; justify-content: space-between; gap: 16px; font-size: 11px; color: #64748b; font-family: Arial, sans-serif; }
           @media print { body { background: #fff; } .print-button { display: none; } .page { margin: 0; } }
@@ -929,8 +933,11 @@ async function printCertificate(cert: CertificateRecord) {
             <div class="watermark"><img src="/intizar-logo.jpg" /></div>
 
             <div class="content">
+              
               <img class="logo" src="/intizar-logo.jpg" />
-              <div class="org">${CERTIFICATE_SETTINGS.organizationName}</div>
+              <img class="official-name-img" src="/certificates/intizar-official-name.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+              <div class="official-name-fallback" style="display:none">انتظار الامام المنتظر<br/><span>(تربین روح د غنغن حكي)</span></div>
+              <div class="org-en">${escapeHtml(CERTIFICATE_SETTINGS.organizationName)}</div>
               <div class="subtitle">Official Learning Management System Certificate</div>
               <div class="cert-title">Certificate</div>
               <div class="small-title">of Completion</div>
@@ -967,8 +974,8 @@ async function printCertificate(cert: CertificateRecord) {
 
               <div class="signature-row">
                 <div class="signature">
-                  <img src="${CERTIFICATE_SETTINGS.secretarySignatureUrl}" onerror="this.style.display='none'" />
-                  <div class="sig-line">INTIZAR Secretary Signature</div>
+                  <img src="/certificates/intizar-secretary-signature.png" onerror="this.style.display='none'" />
+                  <div class="sig-line">INTIZAR Secretary</div>
                 </div>
 
                 <div class="seal">
