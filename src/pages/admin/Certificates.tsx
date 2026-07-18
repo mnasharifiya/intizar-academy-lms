@@ -1149,6 +1149,16 @@ async function printCertificate(cert: CertificateRecord) {
             margin-top: 2px;
           }
 
+          
+          .secretary-signature-img {
+            height: 54px;
+            max-width: 190px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto -2px;
+            background: transparent;
+          }
+
           @media print {
             body { background: #fff; }
             .print-button { display: none; }
@@ -1213,10 +1223,7 @@ async function printCertificate(cert: CertificateRecord) {
 
                 <div class="signature-row">
   <div class="signature signature-single">
-                    <svg class="signature-svg" viewBox="0 0 260 70" aria-label="Secretary signature">
-                      <path d="M18 45 C40 20, 62 55, 84 32 C102 16, 116 48, 134 30 C150 14, 164 48, 184 32 C202 18, 220 36, 242 24" />
-                      <text x="34" y="43">Ali A Muhammad</text>
-                    </svg>
+                    <img class="secretary-signature-img" src="/certificates/intizar-secretary-signature-transparent.png" onerror="this.style.display='none'" />
                     <div class="sig-line"></div>
                     <div class="signature-name">Ali A Muhammad</div>
                     <div class="signature-role">INTIZAR Secretary</div>
