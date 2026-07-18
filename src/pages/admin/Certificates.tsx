@@ -796,7 +796,7 @@ async function printCertificate(cert: CertificateRecord) {
   toolbar.style.justifyContent = "space-between";
   toolbar.style.alignItems = "center";
   toolbar.style.borderBottom = "1px solid #e2e8f0";
-  toolbar.innerHTML = '<strong>Certificate Preview</strong><span style="color:#64748b;font-size:13px">Use the green Print / Save as PDF button inside the certificate.</span>';
+  toolbar.innerHTML = '<strong>Certificate Preview</strong><span style="color:#64748b;font-size:13px">Use Print / Save as PDF inside the certificate.</span>';
 
   const closeButton = document.createElement("button");
   closeButton.textContent = "Close";
@@ -830,20 +830,10 @@ async function printCertificate(cert: CertificateRecord) {
     return;
   }
 
-  doc.open();
-  doc.write(`
-    <html>
-      <body style="font-family:Arial;padding:30px">
-        Preparing certificate QR code...
-      </body>
-    </html>
-  `);
-  doc.close();
-
   const issuedDate = new Date(cert.issuedAt).toLocaleDateString();
   const verifyUrl = certificateVerifyUrl(cert);
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
-    width: 150,
+    width: 170,
     margin: 1,
   });
 
@@ -885,43 +875,296 @@ async function printCertificate(cert: CertificateRecord) {
         <title>${escapeHtml(cert.certificateNo)}</title>
         <style>
           @page { size: A4 landscape; margin: 0; }
-          body { margin: 0; background: #f1f5f9; font-family: Georgia, "Times New Roman", serif; color: #111827; }
-          .print-button { position: fixed; top: 14px; right: 14px; z-index: 20; padding: 10px 16px; font-weight: bold; border: 0; background: #166534; color: #fff; border-radius: 10px; cursor: pointer; }
-          .page { width: 297mm; height: 210mm; margin: 0 auto; background: #fff; position: relative; overflow: hidden; box-sizing: border-box; padding: 12mm; }
-          .border { border: 5px double #166534; height: 100%; box-sizing: border-box; padding: 9mm 11mm; position: relative; }
-          .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.055; z-index: 0; }
-          .watermark img { width: 380px; height: 380px; object-fit: contain; }
-          .content { position: relative; z-index: 2; text-align: center; }
-          .logo { width: 86px; height: 86px; object-fit: contain; margin-bottom: 8px; }
-          .org { font-size: 26px; font-weight: 900; color: #052e16; letter-spacing: 1px; }
-          .official-name-img { width: 280px; max-height: 74px; object-fit: contain; display: block; margin: 0 auto 2px; }
-          .official-name-fallback { font-size: 24px; font-weight: 900; color: #059669; line-height: 1.15; }
-          .official-name-fallback span { color: #1e3a8a; font-size: 16px; }
-          .org-en { font-size: 14px; font-weight: 800; color: #052e16; margin-top: 2px; }
-          .subtitle { font-size: 14px; color: #475569; margin-top: 4px; }
-          .cert-title { margin-top: 18px; font-size: 42px; font-weight: 900; color: #166534; letter-spacing: 3px; text-transform: uppercase; }
-          .small-title { margin-top: 6px; font-size: 18px; color: #334155; letter-spacing: 1px; }
-          .presented { margin-top: 24px; font-size: 17px; color: #475569; }
-          .student-name { margin: 12px auto 8px; font-size: 40px; font-weight: 900; color: #111827; border-bottom: 2px solid #166534; display: inline-block; padding: 0 28px 8px; }
-          .body-text { margin: 18px auto 0; max-width: 840px; font-size: 18px; line-height: 1.75; color: #334155; }
-          .program { font-weight: 900; color: #052e16; }
-          .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; font-family: Arial, sans-serif; text-align: left; }
-          .meta-card { border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 12px; padding: 10px 12px; font-size: 12px; }
-          .meta-label { color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 10px; }
-          .meta-value { margin-top: 4px; color: #052e16; font-weight: bold; word-break: break-word; }
-          .qr-section { position: absolute; left: 10mm; bottom: 8mm; width: 42%; display: flex; align-items: center; justify-content: flex-start; gap: 10px; margin-top: 0; font-family: Arial, sans-serif; text-align: left; }
-          .qr-section img { width: 72px; height: 72px; border: 1px solid #bbf7d0; padding: 4px; border-radius: 8px; background: #fff; }
-          .qr-text { text-align: left; max-width: 300px; font-size: 10px; color: #475569; line-height: 1.3; }
-          .qr-text strong { color: #052e16; display: block; font-size: 13px; margin-bottom: 4px; }
-          .verify-url { word-break: break-all; font-size: 10px; color: #64748b; margin-top: 4px; }
-          .signature-row { position: absolute; right: 10mm; bottom: 8mm; width: 50%; display: grid; grid-template-columns: 1fr 78px 1fr; gap: 12px; align-items: end; margin-top: 0; }
-          .signature { text-align: center; font-family: Arial, sans-serif; color: #0f172a; }
-          .signature img { height: 56px; max-width: 170px; object-fit: contain; margin-bottom: 2px; }
-          .sig-line { border-top: 2px solid #111827; padding-top: 6px; font-size: 13px; font-weight: bold; }
-          .seal img { width: 70px; height: 70px; object-fit: contain; }
-          .seal { text-align: center; color: #166534; font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; }
-          .footer { position: absolute; bottom: 8mm; left: 18mm; right: 18mm; display: flex; justify-content: space-between; gap: 16px; font-size: 11px; color: #64748b; font-family: Arial, sans-serif; }
-          @media print { body { background: #fff; } .print-button { display: none; } .page { margin: 0; } }
+
+          body {
+            margin: 0;
+            background: #f1f5f9;
+            font-family: Georgia, "Times New Roman", serif;
+            color: #111827;
+          }
+
+          .print-button {
+            position: fixed;
+            top: 14px;
+            right: 14px;
+            z-index: 20;
+            padding: 10px 16px;
+            font-weight: bold;
+            border: 0;
+            background: #166534;
+            color: #fff;
+            border-radius: 10px;
+            cursor: pointer;
+          }
+
+          .page {
+            width: 297mm;
+            height: 210mm;
+            margin: 0 auto;
+            background: #fff;
+            position: relative;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 11mm;
+          }
+
+          .border {
+            border: 4px double #166534;
+            height: 100%;
+            box-sizing: border-box;
+            padding: 7mm 10mm;
+            position: relative;
+          }
+
+          .watermark {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.045;
+            z-index: 0;
+          }
+
+          .watermark img {
+            width: 330px;
+            height: 330px;
+            object-fit: contain;
+          }
+
+          .content {
+            position: relative;
+            z-index: 2;
+            height: 100%;
+            display: grid;
+            grid-template-rows: auto auto auto auto auto auto;
+            row-gap: 6px;
+            text-align: center;
+          }
+
+          .logo {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+            margin: 0 auto 2px;
+          }
+
+          .official-name-img {
+            width: 245px;
+            max-height: 58px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto 1px;
+          }
+
+          .official-name-fallback {
+            font-size: 22px;
+            font-weight: 900;
+            color: #059669;
+            line-height: 1.1;
+          }
+
+          .official-name-fallback span {
+            color: #1e3a8a;
+            font-size: 15px;
+          }
+
+          .org-en {
+            font-size: 12px;
+            font-weight: 800;
+            color: #052e16;
+            margin-top: 1px;
+          }
+
+          .cert-title {
+            margin-top: 3px;
+            font-size: 33px;
+            font-weight: 900;
+            color: #166534;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+          }
+
+          .small-title {
+            margin-top: 0;
+            font-size: 15px;
+            color: #334155;
+          }
+
+          .presented {
+            margin-top: 5px;
+            font-size: 14px;
+            color: #475569;
+          }
+
+          .student-name {
+            margin: 5px auto 3px;
+            font-size: 31px;
+            font-weight: 900;
+            color: #111827;
+            border-bottom: 2px solid #166534;
+            display: inline-block;
+            padding: 0 24px 4px;
+          }
+
+          .body-text {
+            margin: 4px auto 0;
+            max-width: 920px;
+            font-size: 13.5px;
+            line-height: 1.4;
+            color: #334155;
+          }
+
+          .program {
+            font-weight: 900;
+            color: #052e16;
+          }
+
+          .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 5px;
+            font-family: Arial, sans-serif;
+            text-align: left;
+          }
+
+          .meta-card {
+            border: 1px solid #bbf7d0;
+            background: #f0fdf4;
+            border-radius: 9px;
+            padding: 6px 8px;
+            min-height: 42px;
+            box-sizing: border-box;
+          }
+
+          .meta-label {
+            color: #64748b;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 8.5px;
+          }
+
+          .meta-value {
+            margin-top: 3px;
+            color: #052e16;
+            font-weight: bold;
+            word-break: break-word;
+            font-size: 10.5px;
+            line-height: 1.2;
+          }
+
+          .bottom-row {
+            display: grid;
+            grid-template-columns: 1.05fr 1fr;
+            gap: 10px;
+            align-items: end;
+            margin-top: 4px;
+          }
+
+          .qr-section {
+            display: grid;
+            grid-template-columns: 76px 1fr;
+            gap: 9px;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            text-align: left;
+            border: 1px solid #bbf7d0;
+            background: #f8fffb;
+            border-radius: 10px;
+            padding: 7px;
+            min-height: 86px;
+            box-sizing: border-box;
+          }
+
+          .qr-section img {
+            width: 68px;
+            height: 68px;
+            border: 1px solid #bbf7d0;
+            padding: 3px;
+            border-radius: 8px;
+            background: #fff;
+          }
+
+          .qr-text {
+            text-align: left;
+            font-size: 8.8px;
+            color: #475569;
+            line-height: 1.25;
+          }
+
+          .qr-text strong {
+            color: #052e16;
+            display: block;
+            font-size: 10.5px;
+            margin-bottom: 2px;
+          }
+
+          .verify-url {
+            word-break: break-all;
+            font-size: 7.6px;
+            color: #64748b;
+            margin-top: 3px;
+          }
+
+          .signature-row {
+            display: grid;
+            grid-template-columns: 1fr 64px 1fr;
+            gap: 9px;
+            align-items: end;
+            min-height: 86px;
+          }
+
+          .signature {
+            text-align: center;
+            font-family: Arial, sans-serif;
+            color: #0f172a;
+          }
+
+          .signature img {
+            height: 42px;
+            max-width: 135px;
+            object-fit: contain;
+            margin-bottom: 2px;
+          }
+
+          .sig-line {
+            border-top: 2px solid #111827;
+            padding-top: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            line-height: 1.15;
+          }
+
+          .seal {
+            text-align: center;
+            color: #166534;
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+            font-weight: bold;
+          }
+
+          .seal img {
+            width: 54px;
+            height: 54px;
+            object-fit: contain;
+          }
+
+          .footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            font-size: 8.5px;
+            color: #64748b;
+            font-family: Arial, sans-serif;
+            margin-top: 2px;
+          }
+
+          @media print {
+            body { background: #fff; }
+            .print-button { display: none; }
+            .page { margin: 0; }
+          }
         </style>
       </head>
 
@@ -933,16 +1176,22 @@ async function printCertificate(cert: CertificateRecord) {
             <div class="watermark"><img src="/intizar-logo.jpg" /></div>
 
             <div class="content">
-              
-              <img class="logo" src="/intizar-logo.jpg" />
-              <img class="official-name-img" src="/certificates/intizar-official-name.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-              <div class="official-name-fallback" style="display:none">انتظار الامام المنتظر<br/><span>(تربین روح د غنغن حكي)</span></div>
-              <div class="org-en">${escapeHtml(CERTIFICATE_SETTINGS.organizationName)}</div>
-              <div class="subtitle">Official Learning Management System Certificate</div>
-              <div class="cert-title">Certificate</div>
-              <div class="small-title">of Completion</div>
-              <div class="presented">This certificate is proudly presented to</div>
-              <div class="student-name">${escapeHtml(cert.studentName)}</div>
+              <div>
+                <img class="logo" src="/intizar-logo.jpg" />
+                <img class="official-name-img" src="/certificates/intizar-official-name.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                <div class="official-name-fallback" style="display:none">انتظار الامام المنتظر<br/><span>(تربین روح د غنغن حكي)</span></div>
+                <div class="org-en">${escapeHtml(CERTIFICATE_SETTINGS.organizationName)}</div>
+              </div>
+
+              <div>
+                <div class="cert-title">Certificate</div>
+                <div class="small-title">of Completion</div>
+              </div>
+
+              <div>
+                <div class="presented">This certificate is proudly presented to</div>
+                <div class="student-name">${escapeHtml(cert.studentName)}</div>
+              </div>
 
               <div class="body-text">
                 This is to certify that the above-named student has successfully completed the
@@ -962,44 +1211,45 @@ async function printCertificate(cert: CertificateRecord) {
                 <div class="meta-card"><div class="meta-label">Issued Date</div><div class="meta-value">${escapeHtml(issuedDate)}</div></div>
               </div>
 
-              <div class="qr-section">
-                <img src="${qrDataUrl}" />
-                <div class="qr-text">
-                  <strong>Official Verification</strong>
-                  Scan the QR code or verify using the certificate number and verification token.
-                  <div><strong>Token:</strong> ${escapeHtml(cert.verificationToken)}</div>
-                  <div class="verify-url">${escapeHtml(verifyUrl)}</div>
+              <div class="bottom-row">
+                <div class="qr-section">
+                  <img src="${qrDataUrl}" />
+                  <div class="qr-text">
+                    <strong>Official Verification</strong>
+                    Scan the QR code or verify using certificate number and verification token.
+                    <div style="margin-top:3px;"><strong>Token:</strong> ${escapeHtml(cert.verificationToken)}</div>
+                    <div class="verify-url">${escapeHtml(verifyUrl)}</div>
+                  </div>
+                </div>
+
+                <div class="signature-row">
+                  <div class="signature">
+                    <img src="/certificates/intizar-secretary-signature.png" onerror="this.style.display='none'" />
+                    <div class="sig-line">INTIZAR Secretary</div>
+                  </div>
+
+                  <div class="seal">
+                    <img src="${CERTIFICATE_SETTINGS.sealUrl}" onerror="this.style.display='none'" />
+                    <div>Official Seal</div>
+                  </div>
+
+                  <div class="signature">
+                    <img src="${CERTIFICATE_SETTINGS.directorSignatureUrl}" onerror="this.style.display='none'" />
+                    <div class="sig-line">Director / Coordinator</div>
+                  </div>
                 </div>
               </div>
 
-              <div class="signature-row">
-                <div class="signature">
-                  <img src="/certificates/intizar-secretary-signature.png" onerror="this.style.display='none'" />
-                  <div class="sig-line">INTIZAR Secretary</div>
-                </div>
-
-                <div class="seal">
-                  <img src="${CERTIFICATE_SETTINGS.sealUrl}" onerror="this.style.display='none'" />
-                  <div>Official Seal</div>
-                </div>
-
-                <div class="signature">
-                  <img src="${CERTIFICATE_SETTINGS.directorSignatureUrl}" onerror="this.style.display='none'" />
-                  <div class="sig-line">Director / Coordinator Signature</div>
-                </div>
+              <div class="footer">
+                <div>Status: VALID</div>
+                <div>Verify using Certificate No and Verification Token</div>
               </div>
             </div>
-          </div>
-
-          <div class="footer">
-            <div>Status: ${escapeHtml(cert.status.toUpperCase())}</div>
-            <div>Verify using Certificate No and Verification Token</div>
           </div>
         </div>
       </body>
     </html>
   `);
-
   doc.close();
 }
 
