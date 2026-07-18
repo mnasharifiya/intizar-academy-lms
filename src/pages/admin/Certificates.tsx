@@ -942,12 +942,7 @@ async function printCertificate(cert: CertificateRecord) {
             text-align: center;
           }
 
-          .logo {
-            width: 42px;
-            height: 42px;
-            object-fit: contain;
-            margin: 0 auto 2px;
-          }
+          .logo { width: 74px; height: 74px; object-fit: contain; }
 
           .org-ar {
   font-size: 30px;
@@ -1125,13 +1120,10 @@ async function printCertificate(cert: CertificateRecord) {
             margin-bottom: 2px;
           }
 
-          .sig-line {
-            border-top: 2px solid #111827;
-            padding-top: 3px;
-            font-size: 10px;
-            font-weight: bold;
-            line-height: 1.15;
-          }
+          .sig-line { border-top: 2px solid #111827; width: 100%; margin-top: 2px; }
+          .signature-svg { width: 210px; height: 54px; display: block; margin: 0 auto -4px; }
+          .signature-svg text { font-family: "Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive; font-size: 27px; font-style: italic; fill: #1d4ed8; font-weight: 700; }
+          .signature-svg path { stroke: #1d4ed8; stroke-width: 2.2; fill: none; stroke-linecap: round; }
 
           .seal {
             text-align: center;
@@ -1221,10 +1213,14 @@ async function printCertificate(cert: CertificateRecord) {
 
                 <div class="signature-row">
   <div class="signature signature-single">
-    <div class="signature-name">Ali A Muhammad</div>
-    <div class="signature-role">INTIZAR Secretary</div>
-    <div class="sig-line"></div>
-  </div>
+                    <svg class="signature-svg" viewBox="0 0 260 70" aria-label="Secretary signature">
+                      <path d="M18 45 C40 20, 62 55, 84 32 C102 16, 116 48, 134 30 C150 14, 164 48, 184 32 C202 18, 220 36, 242 24" />
+                      <text x="34" y="43">Ali A Muhammad</text>
+                    </svg>
+                    <div class="sig-line"></div>
+                    <div class="signature-name">Ali A Muhammad</div>
+                    <div class="signature-role">INTIZAR Secretary</div>
+                  </div>
 </div>
 
 <div class="footer">
