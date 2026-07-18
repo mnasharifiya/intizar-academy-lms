@@ -362,6 +362,31 @@ export default function StudentCbtExamsPage({ data }: any) {
   );
 }
 
+function getLocalTimeZoneLabel() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Your local time";
+  } catch {
+    return "Your local time";
+  }
+}
+
+function formatCbtWatDateTime(value?: string | null) {
+  if (!value) return "Not set";
+
+  try {
+    return new Date(value).toLocaleString([], {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  } catch {
+    return String(value);
+  }
+}
+
 function formatCbtDateTime(value?: string | null) {
   if (!value) return "Not set";
 
@@ -385,7 +410,6 @@ function formatCbtDate(value?: string | null) {
 
   try {
     return new Date(value).toLocaleDateString([], {
-      timeZone: "Africa/Lagos",
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -425,25 +449,36 @@ function CbtScheduleBlock({ exam }: any) {
         </span>
       </div>
 
+      <div style={{ color: "#64748b", fontWeight: 800, fontSize: 12 }}>
+        Timezone: {getLocalTimeZoneLabel()}
+      </div>
+
       <div style={scheduleGrid}>
         <div style={scheduleItem}>
-          <div style={scheduleLabel}>Exam Date</div>
+          <div style={scheduleLabel}>Exam Date (Your Time)</div>
           <div style={scheduleValue}>{formatCbtDate(exam.start_at || exam.created_at)}</div>
         </div>
 
         <div style={scheduleItem}>
-          <div style={scheduleLabel}>Start Time</div>
+          <div style={scheduleLabel}>Start Time (Your Time)</div>
           <div style={scheduleValue}>{formatCbtDateTime(exam.start_at)}</div>
         </div>
 
         <div style={scheduleItem}>
-          <div style={scheduleLabel}>End Time</div>
+          <div style={scheduleLabel}>End Time (Your Time)</div>
           <div style={scheduleValue}>{formatCbtDateTime(exam.end_at)}</div>
         </div>
 
         <div style={scheduleItem}>
           <div style={scheduleLabel}>Duration</div>
           <div style={scheduleValue}>{exam.duration_minutes || 0} minutes</div>
+        </div>
+
+        <div style={{ ...scheduleItem, gridColumn: "1 / -1" }}>
+          <div style={scheduleLabel}>Original Nigeria/WAT Time</div>
+          <div style={scheduleValue}>
+            {formatCbtWatDateTime(exam.start_at)} → {formatCbtWatDateTime(exam.end_at)}
+          </div>
         </div>
       </div>
     </div>
