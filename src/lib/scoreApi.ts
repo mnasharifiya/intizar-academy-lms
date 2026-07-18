@@ -248,3 +248,64 @@ export async function calculateAndSaveCourseResult(input: {
 
   return mapResult(data as any);
 }
+
+
+export async function saveFinalCourseResult(input: {
+  studentId: string;
+  courseId: string;
+  groupId: string | null;
+  finalGrade: number;
+  passMark: number;
+  assessmentComplete: boolean;
+  calculatedBy: string;
+}): Promise<StudentCourseResult> {
+  const now = new Date().toISOString();
+
+  const finalGrade = Math.max(0, Math.min(100, Number(input.finalGrade || 0)));
+  const passMark = Number(input.passMark || 70);
+  const assessmentComplete = input.assessmentComplete === true;
+
+  const status = !assessmentComplete
+    ? "incomplete"
+    : finalGrade >= passMark
+      ? "passed"
+      : "failed";
+
+  const payload = {
+    student_id: input.studentId,
+    course_id: input.courseId,
+    group_id: input.groupId,
+    final_grade: finalGrade,
+    pass_mark: passMark,
+    assessment_complete: assessmentComplete,
+    status,
+    component_breakdown: [
+      {
+        componentType: "final_result",
+        label: "Final Result Entry",
+        weight: 100,
+        score: finalGrade,
+        maxScore: 100,
+        scorePercent: finalGrade,
+        weightedScore: finalGrade,
+        complete: assessmentComplete,
+        manualSummary: true,
+      },
+    ],
+    calculated_by: input.calculatedBy,
+    calculated_at: now,
+    updated_at: now,
+  };
+
+  const { data, error } = await supabase
+    .from("student_course_results")
+    .upsert(payload, {
+      onConflict: "student_id,course_id,group_id",
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return mapResult(data as any);
+}
