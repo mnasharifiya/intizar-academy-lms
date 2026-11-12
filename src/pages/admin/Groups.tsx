@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { PageHeader, Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import {
@@ -7,7 +7,6 @@ import {
   addGroupStudent,
   removeGroupStudent,
   loadAllData,
-  addAdminGroup,
 } from "../../lib/api";
 
 const emptyForm = {
@@ -19,7 +18,7 @@ const emptyForm = {
   isActive: true,
 };
 
-export default function GroupsPage({ user, data, setData }: { user?: any; data: any; setData: any }) {
+export default function GroupsPage({ data, setData }: { user?: any; data: any; setData: any }) {
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [studentModal, setStudentModal] = useState<any>(null);
@@ -30,8 +29,6 @@ export default function GroupsPage({ user, data, setData }: { user?: any; data: 
   const levels = data?.levels ?? [];
   const users = data?.users ?? [];
   const groupStudents = data?.groupStudents ?? [];
-  const adminGroups = data?.adminGroups ?? [];
-  const currentAdminGroupLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
 
   const instructors = users.filter((u: any) => u.role === "instructor");
   const students = users.filter((u: any) => u.role === "student");
@@ -86,7 +83,7 @@ export default function GroupsPage({ user, data, setData }: { user?: any; data: 
       setBusy(true);
 
       if (modal === "add") {
-        const newGroup = await createGroup({
+        await createGroup({
           name: form.name,
           levelId: form.levelId,
           instructorId: form.instructorId,
@@ -94,9 +91,6 @@ export default function GroupsPage({ user, data, setData }: { user?: any; data: 
           isActive: form.isActive,
         });
 
-        if (user?.role === "admin" && currentAdminGroupLinks.length > 0) {
-          await addAdminGroup(user.id, newGroup.id);
-        }
       } else {
         await updateGroup(form.id, {
           name: form.name,

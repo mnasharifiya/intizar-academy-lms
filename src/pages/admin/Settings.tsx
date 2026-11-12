@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { PageHeader, Card, Button } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import {
@@ -15,9 +15,7 @@ export default function AdminSettings({
   user: any;
   data: any;
 }) {
-  const adminGroups = data?.adminGroups ?? [];
-  const myAdminLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
-  const isMainController = user?.role === "admin" && myAdminLinks.length === 0;
+  const isMainController = user?.role === "admin" && Boolean(user?.isMainAdmin || (data?.systemAdminIds ?? []).includes(user.id));
 
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [busy, setBusy] = useState(false);

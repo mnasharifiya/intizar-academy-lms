@@ -1,4 +1,4 @@
-﻿import { type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { C, APP_NAME } from "../../lib/theme";
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ const adminNav = [
   { id: "users", label: "Users", icon: Users },
   { id: "applications", label: "Applications", icon: ClipboardList },
   { id: "courses", label: "Courses", icon: BookOpen },
+  { id: "special-programs", label: "Special Programs", icon: Award },
   { id: "groups", label: "Groups", icon: Layers },
   { id: "assessment", label: "Assessment Scheme", icon: Users },
     { id: "certificates", label: "Certificates", icon: Users },
@@ -35,6 +36,7 @@ const instructorNav = [
   { id: "score-entry", label: "Score Entry", icon: Users },
   { id: "cbt-exams", label: "CBT Exams", icon: ClipboardList },
     { id: "teaching", label: "Teaching", icon: BookOpen },
+  { id: "special-programs", label: "Special Programs", icon: Award },
   { id: "cbt-exams", label: "CBT Exams", icon: ClipboardList },
   { id: "groups", label: "My Groups", icon: Layers },
   { id: "assignments", label: "Assignments", icon: ClipboardList },
@@ -46,6 +48,7 @@ const instructorNav = [
 const studentNav = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "courses", label: "My Courses", icon: BookOpen },
+  { id: "special-programs", label: "Special Programs", icon: Award },
   { id: "assignments", label: "Assignments", icon: ClipboardList },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "grades", label: "Grades", icon: Award },

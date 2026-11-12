@@ -1,4 +1,4 @@
-﻿export type UserRole = 'admin' | 'instructor' | 'student';
+export type UserRole = 'admin' | 'instructor' | 'student';
 export type LevelCategory = 'general' | 'managers' | 'proposal' | 'sisters';
 export type LectureType = 'online_discussion' | 'recorded';
 export type LectureStatus = 'scheduled' | 'live' | 'completed' | 'cancelled';
@@ -18,6 +18,7 @@ export interface AppUser {
   background: string;
   about: string;
   contacts: { email: string; phone: string; office: string };
+  isMainAdmin?: boolean;
 }
 
 export interface Level {
@@ -207,6 +208,7 @@ export interface AppData {
   groups: Group[];
   groupStudents: GroupStudent[];
   adminGroups: AdminGroup[];
+  systemAdminIds: string[];
   lectures: Lecture[];
   attendance: Attendance[];
   assignments: Assignment[];

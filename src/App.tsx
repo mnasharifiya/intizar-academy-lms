@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import LoginPage from "./pages/auth/LoginPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
@@ -13,6 +13,7 @@ import CoursesPage from "./pages/admin/Courses";
 import GroupsPage from "./pages/admin/Groups";
 import AdminReports from "./pages/admin/Reports";
 import AdminCertificates from "./pages/admin/Certificates";
+import SpecialProgramsHub from "./pages/special-programs/SpecialProgramsHub";
 import AdminAssessmentScheme from "./pages/admin/AssessmentScheme";
 import AdminSettings from "./pages/admin/Settings";
 import InstructorScoreEntry from "./pages/instructor/ScoreEntry";
@@ -139,10 +140,10 @@ return {
   }
 
   if (user.role === "admin") {
-    const myAdminGroups = (data.adminGroups ?? []).filter((ag: any) => ag.adminId === user.id);
+    const isMainAdmin = Boolean(user.isMainAdmin || (data.systemAdminIds ?? []).includes(user.id));
+    if (isMainAdmin) return data;
 
-    // Main Controller rule: no rows in admin_groups = all groups.
-    if (myAdminGroups.length === 0) return data;
+    const myAdminGroups = (data.adminGroups ?? []).filter((ag: any) => ag.adminId === user.id);
 
     const groupIds = new Set(myAdminGroups.map((ag: any) => ag.groupId));
     const groups = (data.groups ?? []).filter((g: any) => groupIds.has(g.id));
@@ -217,6 +218,7 @@ function App() {
     groups: [],
     groupStudents: [],
     adminGroups: [],
+    systemAdminIds: [],
     lectures: [],
     assignments: [],
     submissions: [],
@@ -276,6 +278,7 @@ function App() {
     if (page === "change-password") return <ChangePasswordPage />;
     if (currentUser.role === "student") {
       if (page === "courses") return <StudentLearning user={currentUser} data={scopedData} />;
+      if (page === "special-programs") return <SpecialProgramsHub user={currentUser} data={scopedData} />;
       if (page === "assignments") return <StudentAssignments user={currentUser} data={scopedData} setData={setData} />;
       if (page === "attendance") return <StudentAttendance user={currentUser} data={scopedData} />;
       if (page === "grades") return <StudentGrades user={currentUser} data={scopedData} />;
@@ -289,6 +292,7 @@ function App() {
       if (page === "score-entry") return <InstructorScoreEntry user={currentUser} data={scopedData} />;
     if (page === "cbt-exams") return <InstructorCbtExamsPage data={scopedData} />;
       if (page === "teaching") return <InstructorTeaching user={currentUser} data={scopedData} setData={setData} />;
+      if (page === "special-programs") return <SpecialProgramsHub user={currentUser} data={scopedData} />;
     if (page === "cbt-exams") return <InstructorCbtExamsPage data={scopedData} />;
       if (page === "groups") return <InstructorGroups user={currentUser} data={scopedData} />;
       if (page === "assignments") return <InstructorAssignments user={currentUser} data={scopedData} setData={setData} />;
@@ -306,6 +310,7 @@ function App() {
     if (page === "reports") return <AdminReports user={currentUser} data={scopedData} />;
     if (page === "admin-cbt-exams") return <InstructorCbtExamsPage data={scopedData} adminResultsOnly={true} />;
     if (page === "certificates") return <AdminCertificates user={currentUser} data={scopedData} />;
+    if (page === "special-programs") return <SpecialProgramsHub user={currentUser} data={scopedData} />;
     if (page === "assessment") return <AdminAssessmentScheme user={currentUser} data={scopedData} />;
     if (page === "settings") return <AdminSettings user={currentUser} data={scopedData} />;
     if (page === "score-entry") return <InstructorScoreEntry user={currentUser} data={scopedData} />;

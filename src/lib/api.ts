@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { supabase } from './supabase';
 import type {
   AppUser, Level, Course, LevelCourse, Group, GroupStudent, AdminGroup,
@@ -211,7 +211,9 @@ export async function signIn(email: string, password: string): Promise<AppUser> 
   if (!profile) throw new Error('Profile not found');
   if (!profile.is_active) throw new Error('Account is deactivated');
 
-  return mapProfile(profile as Record<string, unknown>);
+  const mapped = mapProfile(profile as Record<string, unknown>);
+  mapped.isMainAdmin = mapped.role === 'admin' ? await fetchIsMainAdmin(mapped.id) : false;
+  return mapped;
 }
 
 export async function signOut(): Promise<void> {
@@ -228,7 +230,20 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     .eq('id', session.user.id)
     .maybeSingle();
 
-  return profile ? mapProfile(profile as Record<string, unknown>) : null;
+  if (!profile) return null;
+  const mapped = mapProfile(profile as Record<string, unknown>);
+  mapped.isMainAdmin = mapped.role === 'admin' ? await fetchIsMainAdmin(mapped.id) : false;
+  return mapped;
+}
+
+export async function fetchIsMainAdmin(userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('system_admins')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) return false;
+  return Boolean(data);
 }
 
 // â”€â”€â”€ LOAD ALL DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -238,7 +253,7 @@ export async function loadAllData(): Promise<AppData> {
     profilesRes, levelsRes, coursesRes, levelCoursesRes,
     groupsRes, groupStudentsRes, lecturesRes, attendanceRes,
     assignmentsRes, assignmentFilesRes, submissionsRes,
-    gradesRes, chatsRes, notifsRes, videosRes, materialsRes, adminGroupsRes,
+    gradesRes, chatsRes, notifsRes, videosRes, materialsRes, adminGroupsRes, systemAdminsRes,
   ] = await Promise.all([
     supabase.from('profiles').select('*').order('name'),
     supabase.from('levels').select('*').order('name'),
@@ -257,6 +272,7 @@ export async function loadAllData(): Promise<AppData> {
     supabase.from('videos').select('*').order('order'),
     supabase.from('learning_materials').select('*').order('display_order'),
     supabase.from('admin_groups').select('*'),
+    supabase.from('system_admins').select('user_id'),
   ]);
 
   const filesMap = new Map<string, AssignmentFile[]>();
@@ -275,6 +291,7 @@ export async function loadAllData(): Promise<AppData> {
 
   return {
     adminGroups: (adminGroupsRes.data ?? []).map((r) => mapAdminGroup(r as Record<string, unknown>)),
+    systemAdminIds: (systemAdminsRes.data ?? []).map((r) => (r as Record<string, unknown>).user_id as string),
     users: (profilesRes.data ?? []).map((r) => mapProfile(r as Record<string, unknown>)),
     levels: (levelsRes.data ?? []).map((r) => mapLevel(r as Record<string, unknown>)),
     courses: (coursesRes.data ?? []).map((r) => mapCourse(r as Record<string, unknown>)),
@@ -369,41 +386,42 @@ export async function seedDatabase(): Promise<{ success: boolean; message: strin
   return res.json();
 }
 
-export async function updateUser(id: string, updates: Partial<{
-  name: string; email: string; role: AppUser['role']; levelId: string | null;
-  photo: string | null; isActive: boolean; rank: string; background: string;
-  about: string; phone: string; office: string;
-}>): Promise<AppUser> {
-  const dbUpdates: Record<string, unknown> = {};
-  if (updates.name !== undefined) dbUpdates.name = updates.name;
-  if (updates.email !== undefined) dbUpdates.email = updates.email;
-  if (updates.role !== undefined) dbUpdates.role = updates.role;
-  if (updates.levelId !== undefined) dbUpdates.level_id = updates.levelId;
-  if (updates.photo !== undefined) dbUpdates.photo = updates.photo;
-  if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
-  if (updates.rank !== undefined) dbUpdates.rank = updates.rank;
-  if (updates.background !== undefined) dbUpdates.background = updates.background;
-  if (updates.about !== undefined) dbUpdates.about = updates.about;
-  if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
-  if (updates.office !== undefined) dbUpdates.office = updates.office;
+export async function updateUser(
+  id: string,
+  updates: Partial<{
+    photo: string | null;
+    isActive: boolean;
+    levelId: string | null;
+    regNo: string | null;
+  }>
+): Promise<AppUser> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(dbUpdates)
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
-  return mapProfile(data as Record<string, unknown>);
+  if (!token) throw new Error("Authentication required.");
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/admin-ops/update-user`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    },
+    body: JSON.stringify({ userId: id, updates }),
+  });
+
+  const result = await res.json();
+
+  if (!res.ok) {
+    throw new Error(result.error ?? "Failed to update user.");
+  }
+
+  return result as AppUser;
 }
-
 export async function deleteUser(id: string): Promise<void> {
-  const { error } = await supabase.from('profiles').delete().eq('id', id);
-  if (error) throw error;
+  return deleteUserAdmin(id);
 }
-
-// â”€â”€â”€ LEVELS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 export async function createLevel(data: Omit<Level, 'id'>): Promise<Level> {
   const { data: row, error } = await supabase
     .from('levels')

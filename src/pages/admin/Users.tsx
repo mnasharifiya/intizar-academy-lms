@@ -1,4 +1,4 @@
-﻿import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { PageHeader, Card, Button, Input } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import {
@@ -56,9 +56,11 @@ export default function UsersPage({
   const adminGroups = data?.adminGroups ?? [];
   const groupStudents = data?.groupStudents ?? [];
 
-  const currentAdminLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
-  const currentAdminIsMainController = user?.role === "admin" && currentAdminLinks.length === 0;
-  const currentAdminIsRestricted = user?.role === "admin" && currentAdminLinks.length > 0;
+  const systemAdminIds: string[] = data?.systemAdminIds ?? [];
+  const currentAdminIsMainController =
+    user?.role === "admin" &&
+    Boolean(user?.isMainAdmin || systemAdminIds.includes(user.id));
+  const currentAdminIsRestricted = user?.role === "admin" && !currentAdminIsMainController;
 
   const pendingStudents = groupStudents.filter((gs: any) => gs.status === "pending");
   const pendingInstructors = groups.filter((g: any) => g.instructorId && g.instructorStatus === "pending");
@@ -104,8 +106,9 @@ export default function UsersPage({
   }
 
   function adminAccessText(adminId: string) {
+    if (systemAdminIds.includes(adminId)) return "Main Admin / all groups";
     const links = adminGroups.filter((ag: any) => ag.adminId === adminId);
-    if (links.length === 0) return "Main controller / all groups";
+    if (links.length === 0) return "No groups assigned (Restricted)";
     return links.map((ag: any) => groupName(ag.groupId)).join(", ");
   }
 
@@ -115,8 +118,8 @@ export default function UsersPage({
       return;
     }
 
-    if (admin.id === user?.id) {
-      alert("For safety, manage your own main-controller access from Supabase only.");
+    if (admin.id === user?.id || systemAdminIds.includes(admin.id)) {
+      alert("Main Admin accounts have global access managed via system_admins.");
       return;
     }
 
@@ -413,7 +416,7 @@ export default function UsersPage({
                           <div style={{fontSize:12,color:C.muted,maxWidth:260,lineHeight:1.5}}>
                             {adminAccessText(u.id)}
                           </div>
-                          {currentAdminIsMainController && u.id !== user?.id && (
+                          {currentAdminIsMainController && u.id !== user?.id && !systemAdminIds.includes(u.id) && (
                             <button style={smallButton} disabled={busy} onClick={() => openAccessModal(u)}>
                               Manage Access
                             </button>
@@ -526,7 +529,7 @@ export default function UsersPage({
                 <div style={accessBox}>
                   <strong style={{color:C.text}}>Admin Group Access</strong>
                   <p style={helpText}>
-                    Select the groups this admin can manage. If no group is selected, this admin becomes Main Controller / all groups.
+                    Select the groups this Restricted Admin can manage. New admins are created as Restricted Admins; Main Admin status is granted separately in system_admins.
                   </p>
 
                   <div style={checkGrid}>
@@ -545,7 +548,7 @@ export default function UsersPage({
 
                   {form.adminGroupIds.length === 0 && (
                     <div style={warningBox}>
-                      No group selected: this admin will be Main Controller / all groups.
+                      No group selected: this Restricted Admin will have no group access until groups are assigned.
                     </div>
                   )}
                 </div>
@@ -590,7 +593,7 @@ export default function UsersPage({
 
               {accessGroupIds.length === 0 && (
                 <div style={warningBox}>
-                  No group selected: this admin will be Main Controller / all groups.
+                  No group selected: this Restricted Admin will have no group access until groups are assigned.
                 </div>
               )}
             </div>

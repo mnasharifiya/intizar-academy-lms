@@ -1,7 +1,75 @@
-﻿import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Button, Card, Input } from "../../components/common/ui";
 import { APP_NAME, C } from "../../lib/theme";
-import { verifyCertificate, type CertificateRecord } from "../../lib/certificateApi";
+import { verifyCertificate } from "../../lib/certificateApi";
+import { verifySpecialProgramCertificate } from "../../lib/specialProgramsApi";
+
+interface VerifiedCertDisplay {
+  id: string;
+  certificateNo: string;
+  verificationToken: string;
+  studentName: string;
+  regNo: string;
+  programName: string;
+  branch: string;
+  zone: string;
+  status: string;
+  issuedAt: string;
+}
+
+async function verifyAnyCertificate(input: {
+  certificateNo: string;
+  verificationToken: string;
+}): Promise<VerifiedCertDisplay | null> {
+  const normalizedNo = input.certificateNo.trim().toUpperCase();
+  if (normalizedNo.startsWith("INT-SP-")) {
+    const spCert = await verifySpecialProgramCertificate(input);
+    if (!spCert) return null;
+    return {
+      id: spCert.id,
+      certificateNo: spCert.certificateNo,
+      verificationToken: spCert.verificationToken,
+      studentName: spCert.studentName,
+      regNo: spCert.regNo || "-",
+      programName: spCert.programTitle,
+      branch: "Special Programs",
+      zone: "Academy-Wide",
+      status: spCert.status === "revoked" ? "revoked" : "valid",
+      issuedAt: spCert.issuedAt,
+    };
+  }
+
+  const standardCert = await verifyCertificate(input);
+  if (standardCert) {
+    return {
+      id: standardCert.id,
+      certificateNo: standardCert.certificateNo,
+      verificationToken: standardCert.verificationToken,
+      studentName: standardCert.studentName,
+      regNo: standardCert.regNo || "-",
+      programName: standardCert.programName,
+      branch: standardCert.branch || "-",
+      zone: standardCert.zone || "-",
+      status: standardCert.status,
+      issuedAt: standardCert.issuedAt,
+    };
+  }
+
+  const spFallback = await verifySpecialProgramCertificate(input);
+  if (!spFallback) return null;
+  return {
+    id: spFallback.id,
+    certificateNo: spFallback.certificateNo,
+    verificationToken: spFallback.verificationToken,
+    studentName: spFallback.studentName,
+    regNo: spFallback.regNo || "-",
+    programName: spFallback.programTitle,
+    branch: "Special Programs",
+    zone: "Academy-Wide",
+    status: spFallback.status === "revoked" ? "revoked" : "valid",
+    issuedAt: spFallback.issuedAt,
+  };
+}
 
 export default function CertificateVerify({
   onBackToLogin,
@@ -10,11 +78,10 @@ export default function CertificateVerify({
 }) {
   const [certificateNo, setCertificateNo] = useState("");
   const [verificationToken, setVerificationToken] = useState("");
-  const [result, setResult] = useState<CertificateRecord | null>(null);
+  const [result, setResult] = useState<VerifiedCertDisplay | null>(null);
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Auto verify certificate from QR code link
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const no = params.get("certificateNo") || "";
@@ -28,7 +95,7 @@ export default function CertificateVerify({
     setChecked(false);
     setResult(null);
 
-    verifyCertificate({
+    verifyAnyCertificate({
       certificateNo: no,
       verificationToken: token,
     })
@@ -56,7 +123,7 @@ export default function CertificateVerify({
       setChecked(false);
       setResult(null);
 
-      const cert = await verifyCertificate({
+      const cert = await verifyAnyCertificate({
         certificateNo,
         verificationToken,
       });
@@ -102,13 +169,13 @@ export default function CertificateVerify({
             <Input
               value={certificateNo}
               onChange={v => setCertificateNo(v.toUpperCase())}
-              placeholder="Certificate No e.g. INT-CERT-2026-KA001AR-ARIF"
+              placeholder="Certificate No e.g. INT-CERT-2026-KA001AR-ARIF or INT-SP-..."
             />
 
             <Input
               value={verificationToken}
               onChange={v => setVerificationToken(v.toUpperCase())}
-              placeholder="Verification Token e.g. VERIFY-XXXX-XXXX"
+              placeholder="Verification Token e.g. VERIFY-XXXX-XXXX or SP-VERIFY-..."
             />
 
             <Button type="submit" disabled={busy}>
@@ -283,4 +350,3 @@ const infoCard: CSSProperties = {
   padding:14,
   background:"#f8fafc",
 };
-

@@ -1,4 +1,5 @@
-﻿import { supabase } from "./supabase";
+﻿import { updateUser } from "./api";
+import { supabase } from "./supabase";
 
 export type ApplicationProgram = {
   id: string;
@@ -160,36 +161,24 @@ export async function submitApplication(input: {
   const paymentReference = makePaymentReference();
   const suggestedRegNo = suggestRegNo(input.branch, input.programName, 1);
 
-  const { data, error } = await supabase
-    .from("applications")
-    .insert({
-      application_no: applicationNo,
-      payment_reference: paymentReference,
-      full_name: input.fullName,
-      email: input.email,
-      phone_no: input.phoneNo,
-      photo: input.photo,
-      zone: input.zone,
-      branch: input.branch,
-      work_in_branch: input.workInBranch,
-      program_id: input.programId,
-      final_program_id: input.programId,
-      application_fee: fee,
-      payment_status: "pending",
-      application_status: "payment_pending",
-      suggested_reg_no: suggestedRegNo,
+  const { data, error } = await (supabase as any)
+    .rpc("submit_public_application", {
+      p_application_no: applicationNo,
+      p_payment_reference: paymentReference,
+      p_full_name: input.fullName,
+      p_email: input.email,
+      p_phone_no: input.phoneNo,
+      p_photo: input.photo,
+      p_zone: input.zone,
+      p_branch: input.branch,
+      p_work_in_branch: input.workInBranch,
+      p_program_id: input.programId,
+      p_application_fee: fee,
+      p_suggested_reg_no: suggestedRegNo,
     })
-    .select()
     .single();
 
   if (error) throw error;
-
-  await supabase.from("application_payments").insert({
-    application_id: (data as any).id,
-    payment_reference: paymentReference,
-    amount: fee,
-    status: "pending",
-  });
 
   return mapApplication(data as any);
 }
@@ -369,15 +358,10 @@ export async function markApplicationStudentCreated(input: {
 }): Promise<void> {
   const now = new Date().toISOString();
 
-  const { error: profileErr } = await supabase
-    .from("profiles")
-    .update({
-      level_id: input.finalProgramId,
-      reg_no: input.regNo,
-    })
-    .eq("id", input.studentId);
-
-  if (profileErr) throw profileErr;
+  await updateUser(input.studentId, {
+    levelId: input.finalProgramId,
+    regNo: input.regNo,
+  });
 
   const { error: appErr } = await supabase
     .from("applications")
@@ -389,6 +373,7 @@ export async function markApplicationStudentCreated(input: {
 
   if (appErr) throw appErr;
 }
+
 
 
 

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Card } from "../../components/common/ui";
 import { C } from "../../lib/theme";
 import {
@@ -38,17 +38,14 @@ export default function AdminReports({
   const submissions = data?.submissions ?? [];
   const videos = data?.videos ?? [];
   const materials = data?.learningMaterials ?? [];
-  const adminGroups = data?.adminGroups ?? [];
 
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [payments, setPayments] = useState<ApplicationPayment[]>([]);
   const [courseResults, setCourseResults] = useState<StudentCourseResult[]>([]);
   const [remedialPayments, setRemedialPayments] = useState<RemedialPayment[]>([]);
   const [certificates, setCertificates] = useState<CertificateRecord[]>([]);
-
-  const currentAdminLinks = adminGroups.filter((ag: any) => ag.adminId === user?.id);
-  const isRestrictedAdmin = user?.role === "admin" && currentAdminLinks.length > 0;
-  const isMainController = user?.role === "admin" && currentAdminLinks.length === 0;
+  const isMainController = user?.role === "admin" && Boolean(user?.isMainAdmin || (data?.systemAdminIds ?? []).includes(user.id));
+  const isRestrictedAdmin = user?.role === "admin" && !isMainController;
 
   const students = users.filter((u: any) => u.role === "student");
   const instructors = users.filter((u: any) => u.role === "instructor");
