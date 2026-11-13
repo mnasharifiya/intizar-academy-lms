@@ -1,4 +1,4 @@
-﻿import { supabase } from "./supabase";
+import { supabase } from "./supabase";
 
 export type SpecialProgramStatus =
   | "draft"
@@ -930,9 +930,9 @@ export async function loadProgramAnalyticsBundle(programId: string) {
   const certificates = (certsRes.data ?? []).map(mapCertificate);
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-  const activeEnrollments = enrollments.filter(e => e.status === "active" || e.status === "completed");
+  const activeEnrollments = enrollments.filter(e => ["active", "enrolled", "approved", "completed"].includes(String(e.status || "").toLowerCase()));
   const inactiveLearners = enrollments.filter(e => {
-    if (e.status !== "active") return false;
+    if (!["active", "enrolled", "approved"].includes(String(e.status || "").toLowerCase())) return false;
     const lastTs = e.lastAccessedAt ? new Date(e.lastAccessedAt).getTime() : new Date(e.enrolledAt).getTime();
     return lastTs < sevenDaysAgo;
   });

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import LoginPage from "./pages/auth/LoginPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
@@ -31,6 +31,7 @@ import InstructorAttendance from "./pages/instructor/Attendance";
 import GroupChat from "./pages/common/GroupChat";
 import NotificationsPage from "./pages/common/Notifications";
 import { loadAllData } from "./lib/api";
+import { SubNavigationProvider, useSubNavigation } from "./context/SubNavigationContext";
 
 const PAGE_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
@@ -216,7 +217,7 @@ function scopeData(user: any, data: any) {
   return data;
 }
 
-function App() {
+function AppContent() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [page, setPage] = useState("dashboard");
   const [historyStack, setHistoryStack] = useState<string[]>([]);
@@ -259,10 +260,12 @@ function App() {
     learningMaterials: [],
   });
 
+  const subNav = useSubNavigation();
   const scopedData = useMemo(() => scopeData(currentUser, data), [currentUser, data]);
 
   function navigateTo(nextPage: string) {
     if (!nextPage || nextPage === page) return;
+    subNav.clearSubSteps();
     setHistoryStack((prev) => [...prev, page]);
     setPage(nextPage);
     if (!isPoppingRef.current) {
@@ -271,6 +274,9 @@ function App() {
   }
 
   function handleGoBack() {
+    if (subNav.goBackSubStep()) {
+      return;
+    }
     if (historyStack.length > 0) {
       const previousPage = historyStack[historyStack.length - 1];
       setHistoryStack((prev) => prev.slice(0, -1));
@@ -405,9 +411,11 @@ function App() {
     return <h1>{page}</h1>;
   }
 
-  const canGoBack = historyStack.length > 0 || page !== "dashboard";
+  const canGoBack = subNav.hasSubHistory || historyStack.length > 0 || page !== "dashboard";
   const previousPageId = historyStack.length > 0 ? historyStack[historyStack.length - 1] : (page !== "dashboard" ? "dashboard" : "");
-  const backLabel = previousPageId ? (PAGE_LABELS[previousPageId] || previousPageId) : undefined;
+  const backLabel = subNav.hasSubHistory
+    ? (subNav.currentBackLabel || "Previous View")
+    : (previousPageId ? (PAGE_LABELS[previousPageId] || previousPageId) : undefined);
 
   return (
     <AppLayout
@@ -416,9 +424,11 @@ function App() {
       setPage={navigateTo}
       canGoBack={canGoBack}
       backLabel={backLabel}
+      breadcrumbs={subNav.breadcrumbs}
       onBack={handleGoBack}
       onChangePassword={() => navigateTo("change-password")}
       onLogout={() => {
+        subNav.clearSubSteps();
         setCurrentUser(null);
         setHistoryStack([]);
       }}
@@ -428,4 +438,12 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <SubNavigationProvider>
+      <AppContent />
+    </SubNavigationProvider>
+  );
+}
+
+

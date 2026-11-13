@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Button, Card, Input, PageHeader } from "../../components/common/ui";
 import { C } from "../../lib/theme";
+import { useSubNavigation } from "../../context/SubNavigationContext";
 import { supabase } from "../../lib/supabase";
 import {
   createSpecialProgramSignedUrl,
@@ -65,6 +66,7 @@ export default function StudentSpecialProgramsView({
   const [myCertificates, setMyCertificates] = useState<ProgramCertificate[]>([]);
   const [loadingCatalogue, setLoadingCatalogue] = useState(true);
 
+  const subNav = useSubNavigation();
   const [activeProgramId, setActiveProgramId] = useState<string | null>(null);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [program, setProgram] = useState<SpecialProgram | null>(null);
@@ -249,7 +251,7 @@ export default function StudentSpecialProgramsView({
 
   useEffect(() => {
     if (!activeLesson || activeLesson.lessonType !== "video") return;
-    if (!enrollment || (enrollment.status !== "active" && enrollment.status !== "completed")) return;
+    if (!enrollment || !["active", "enrolled", "approved", "completed"].includes(String(enrollment.status || "").toLowerCase())) return;
 
     const timer = window.setInterval(async () => {
       if (document.hidden) return;
@@ -326,7 +328,7 @@ export default function StudentSpecialProgramsView({
       setBusy(true);
       const enr = await manageProgramEnrollment(prog.id, "enroll");
       await refreshCatalogue();
-      if (enr.status === "active") {
+      if (["active", "enrolled", "approved"].includes(String(enr.status || "").toLowerCase())) {
         await openWorkspace(prog.id);
       } else {
         alert("Enrollment request submitted and is awaiting administrator approval.");
@@ -575,14 +577,20 @@ export default function StudentSpecialProgramsView({
                             }}
                           />
                         </div>
-                        {(enr.status === "active" || enr.status === "completed") && (
+                        {["active", "enrolled", "approved", "completed"].includes(
+                          String(enr.status || "").toLowerCase()
+                        ) ? (
                           <Button onClick={() => openWorkspace(prog.id)}>
-                            {enr.status === "completed"
+                            {String(enr.status || "").toLowerCase() === "completed"
                               ? "Review Program & Certificate"
                               : enr.progressPercent > 0
                                 ? "Resume Learning"
                                 : "Start Learning"}
                           </Button>
+                        ) : (
+                          <div style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>
+                            Your enrollment is awaiting admin approval.
+                          </div>
                         )}
                       </div>
                     ) : (
@@ -651,6 +659,8 @@ export default function StudentSpecialProgramsView({
             <Button
               variant="secondary"
               onClick={() => {
+                subNav.popSubStep("student-program-workspace");
+                subNav.setBreadcrumbs([]);
                 setActiveProgramId(null);
                 refreshCatalogue();
               }}

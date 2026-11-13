@@ -613,17 +613,49 @@ export default function InstructorCourseStudio({
         >
           <div style={{ minWidth: 280, flex: 1 }}>
             <label style={labelStyle}>Assigned Program Course</label>
-            <select
-              value={selectedCourseId}
-              onChange={e => setSelectedCourseId(e.target.value)}
-              style={selectStyle}
-            >
-              {availableCourses.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.title} [{c.status.toUpperCase()}]
-                </option>
-              ))}
-            </select>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <select
+                value={selectedCourseId}
+                onChange={e => setSelectedCourseId(e.target.value)}
+                style={{ ...selectStyle, flex: 1, minWidth: 220 }}
+              >
+                {availableCourses.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.title} [{c.status.toUpperCase()}]
+                  </option>
+                ))}
+              </select>
+              {(() => {
+                const idx = availableCourses.findIndex(c => c.id === selectedCourseId);
+                return (
+                  <>
+                    <Button
+                      variant="secondary"
+                      disabled={idx <= 0}
+                      onClick={() => idx > 0 && setSelectedCourseId(availableCourses[idx - 1].id)}
+                    >
+                      ← Prev
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={idx === -1 || idx >= availableCourses.length - 1}
+                      onClick={() =>
+                        idx >= 0 &&
+                        idx < availableCourses.length - 1 &&
+                        setSelectedCourseId(availableCourses[idx + 1].id)
+                      }
+                    >
+                      Next →
+                    </Button>
+                    {onBack && (
+                      <Button variant="secondary" onClick={onBack}>
+                        + Add / Manage Courses
+                      </Button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
           </div>
 
           {course && (

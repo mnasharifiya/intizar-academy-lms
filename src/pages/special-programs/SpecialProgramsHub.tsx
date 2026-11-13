@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, PageHeader } from "../../components/common/ui";
 import { C } from "../../lib/theme";
+import { useSubNavigation } from "../../context/SubNavigationContext";
 import {
   loadSpecialProgramsOverviewList,
   type ProgramCourse,
@@ -17,6 +18,7 @@ export default function SpecialProgramsHub({
   user: any;
   data: any;
 }) {
+  const subNav = useSubNavigation();
   const role = String(user?.role || "").toLowerCase();
   const isMainAdmin = Boolean(
     role === "admin" &&
@@ -29,30 +31,63 @@ export default function SpecialProgramsHub({
   const [studioCourseId, setStudioCourseId] = useState<string | null>(null);
   const [instructorMode, setInstructorMode] = useState<"studio" | "lead">("studio");
 
-  useEffect(() => {
+  const loadMeta = useCallback(async () => {
     if (role === "student") return;
-    let cancelled = false;
-
-    async function loadMeta() {
-      try {
-        setLoadingRoleMeta(true);
-        const res = await loadSpecialProgramsOverviewList();
-        if (!cancelled) {
-          setCourses(res.courses);
-          setLeads(res.leads);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (!cancelled) setLoadingRoleMeta(false);
-      }
+    try {
+      setLoadingRoleMeta(true);
+      const res = await loadSpecialProgramsOverviewList();
+      setCourses(res.courses);
+      setLeads(res.leads);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingRoleMeta(false);
     }
+  }, [role]);
 
+  useEffect(() => {
     loadMeta();
-    return () => {
-      cancelled = true;
-    };
-  }, [role, user?.id]);
+  }, [loadMeta, user?.id]);
+
+  const openStudio = useCallback(
+    (courseId: string) => {
+      const courseObj = courses.find(c => c.id === courseId);
+      setStudioCourseId(courseId);
+      subNav.setBreadcrumbs([
+        {
+          id: "sp-root",
+          label: "Special Programs",
+          onClick: () => {
+            subNav.popSubStep("course-studio");
+            subNav.setBreadcrumbs([]);
+            setStudioCourseId(null);
+            loadMeta();
+          },
+        },
+        {
+          id: "sp-studio",
+          label: courseObj ? `Studio: ${courseObj.title}` : "Course Studio",
+        },
+      ]);
+      subNav.pushSubStep({
+        id: "course-studio",
+        label: "Curriculum",
+        restore: () => {
+          subNav.setBreadcrumbs([]);
+          setStudioCourseId(null);
+          loadMeta();
+        },
+      });
+    },
+    [subNav, courses, loadMeta]
+  );
+
+  const closeStudio = useCallback(() => {
+    subNav.popSubStep("course-studio");
+    subNav.setBreadcrumbs([]);
+    setStudioCourseId(null);
+    loadMeta();
+  }, [subNav, loadMeta]);
 
   const leadProgramIds = useMemo(
     () => leads.filter(l => l.instructorId === user?.id).map(l => l.programId),
@@ -91,7 +126,7 @@ export default function SpecialProgramsHub({
           data={data}
           availableCourses={managedCourses}
           initialCourseId={studioCourseId}
-          onBack={() => setStudioCourseId(null)}
+          onBack={closeStudio}
         />
       );
     }
@@ -102,7 +137,7 @@ export default function SpecialProgramsHub({
         data={data}
         isMainAdmin={isMainAdmin}
         leadProgramIds={leadProgramIds}
-        onOpenCourseStudio={courseId => setStudioCourseId(courseId)}
+        onOpenCourseStudio={openStudio}
       />
     );
   }
@@ -134,7 +169,7 @@ export default function SpecialProgramsHub({
             data={data}
             availableCourses={managedCourses}
             initialCourseId={studioCourseId}
-            onBack={() => setStudioCourseId(null)}
+            onBack={closeStudio}
           />
         );
       }
@@ -156,7 +191,7 @@ export default function SpecialProgramsHub({
             data={data}
             isMainAdmin={false}
             leadProgramIds={leadProgramIds}
-            onOpenCourseStudio={courseId => setStudioCourseId(courseId)}
+            onOpenCourseStudio={openStudio}
           />
         </div>
       );
