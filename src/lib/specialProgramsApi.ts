@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+﻿import { supabase } from "./supabase";
 
 export type SpecialProgramStatus =
   | "draft"
@@ -585,7 +585,7 @@ export async function loadSpecialProgramsOverviewList() {
     supabase.from("special_programs").select("*").order("created_at", { ascending: false }),
     supabase.from("program_courses").select("*").order("display_order", { ascending: true }),
     supabase.from("program_instructors").select("*").eq("is_active", true),
-    supabase.from("program_enrollments").select("*").order("enrolled_at", { ascending: false }),
+    supabase.from("program_enrollments").select("*, profiles:student_id(full_name, email)").order("enrolled_at", { ascending: false }),
     supabase.from("program_certificates").select("*").order("issued_at", { ascending: false }),
   ]);
 
@@ -898,7 +898,7 @@ export async function loadProgramAnalyticsBundle(programId: string) {
     supabase.from("special_programs").select("*").eq("id", programId).single(),
     supabase.from("program_courses").select("*").eq("program_id", programId).order("display_order"),
     supabase.from("program_instructors").select("*").eq("program_id", programId),
-    supabase.from("program_enrollments").select("*").eq("program_id", programId).order("enrolled_at", { ascending: false }),
+    supabase.from("program_enrollments").select("*, profiles:student_id(full_name, email)").eq("program_id", programId).order("enrolled_at", { ascending: false }),
     supabase
       .from("lesson_progress")
       .select("*, program_lessons!inner(course_id, program_courses!inner(program_id))")
@@ -1019,7 +1019,7 @@ export async function loadCourseStudioBundle(courseId: string) {
   }
 
   const [enrollmentsRes, progressRes] = await Promise.all([
-    supabase.from("program_enrollments").select("*").eq("program_id", course.programId),
+    supabase.from("program_enrollments").select("*, profiles:student_id(full_name, email)").eq("program_id", course.programId),
     supabase
       .from("lesson_progress")
       .select("*, program_lessons!inner(course_id)")
@@ -1585,3 +1585,5 @@ export async function verifySpecialProgramCertificate(input: {
     issuedAt: data.issued_at,
   };
 }
+
+

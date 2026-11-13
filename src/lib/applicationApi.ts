@@ -165,7 +165,7 @@ export async function submitApplication(input: {
     .rpc("submit_public_application", {
       p_application_no: applicationNo,
       p_payment_reference: paymentReference,
-      p_full_name: input.fullName,
+      p_full_name: input.fullName || "User",
       p_email: input.email,
       p_phone_no: input.phoneNo,
       p_photo: input.photo,
@@ -373,6 +373,8 @@ export async function markApplicationStudentCreated(input: {
 
   if (appErr) throw appErr;
 }
+
+
 
 
 
