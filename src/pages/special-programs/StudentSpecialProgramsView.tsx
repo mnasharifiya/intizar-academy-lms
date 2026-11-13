@@ -104,6 +104,7 @@ export default function StudentSpecialProgramsView({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastReportedPosRef = useRef<number>(0);
+  const [activeStudySeconds, setActiveStudySeconds] = useState<number>(0);
 
   async function refreshCatalogue() {
     try {
@@ -250,13 +251,26 @@ export default function StudentSpecialProgramsView({
   }, [activeLesson?.id, activeLesson?.mediaStoragePath]);
 
   useEffect(() => {
-    if (!activeLesson || activeLesson.lessonType !== "video") return;
+    setActiveStudySeconds(activeLessonProgress?.watchedSeconds ?? 0);
+  }, [activeLesson?.id, activeLessonProgress?.watchedSeconds]);
+
+  useEffect(() => {
+    if (!activeLesson || activeLessonProgress?.status === "completed") return;
     if (!enrollment || !["active", "enrolled", "approved", "completed"].includes(String(enrollment.status || "").toLowerCase())) return;
 
-    const timer = window.setInterval(async () => {
+    const uiTick = window.setInterval(() => {
+      if (document.hidden) return;
+      if (activeLesson.lessonType === "video" && activeLesson.videoSourceType === "storage") {
+        const el = videoRef.current;
+        if (!el || el.paused || el.ended) return;
+      }
+      setActiveStudySeconds(prev => prev + 1);
+    }, 1000);
+
+    const serverBeat = window.setInterval(async () => {
       if (document.hidden) return;
 
-      if (activeLesson.videoSourceType === "storage") {
+      if (activeLesson.lessonType === "video" && activeLesson.videoSourceType === "storage") {
         const el = videoRef.current;
         if (!el || el.paused || el.ended) return;
         const currentPos = Math.floor(el.currentTime || 0);
@@ -269,27 +283,22 @@ export default function StudentSpecialProgramsView({
             deltaSeconds: delta,
             markComplete: false,
           });
-          setLessonProgress(prev => {
-            const others = prev.filter(p => p.lessonId !== activeLesson.id);
-            return [...others, res.lessonProgress];
-          });
+          setLessonProgress(prev => [...prev.filter(p => p.lessonId !== activeLesson.id), res.lessonProgress]);
           if (res.enrollment) setEnrollment(res.enrollment);
           if (res.certificate) setCertificate(res.certificate);
         } catch (err) {
           console.error(err);
         }
-      } else if (activeLesson.videoSourceType === "external") {
+      } else {
         try {
+          const nextPos = (activeLessonProgress?.lastPositionSeconds ?? 0) + 15;
           const res = await recordLessonProgressSecure({
             lessonId: activeLesson.id,
-            positionSeconds: (activeLessonProgress?.lastPositionSeconds ?? 0) + 15,
+            positionSeconds: nextPos,
             deltaSeconds: 15,
             markComplete: false,
           });
-          setLessonProgress(prev => {
-            const others = prev.filter(p => p.lessonId !== activeLesson.id);
-            return [...others, res.lessonProgress];
-          });
+          setLessonProgress(prev => [...prev.filter(p => p.lessonId !== activeLesson.id), res.lessonProgress]);
           if (res.enrollment) setEnrollment(res.enrollment);
           if (res.certificate) setCertificate(res.certificate);
         } catch (err) {
@@ -298,8 +307,11 @@ export default function StudentSpecialProgramsView({
       }
     }, 15000);
 
-    return () => window.clearInterval(timer);
-  }, [activeLesson?.id, activeLesson?.lessonType, activeLesson?.videoSourceType, enrollment?.status]);
+    return () => {
+      window.clearInterval(uiTick);
+      window.clearInterval(serverBeat);
+    };
+  }, [activeLesson?.id, activeLesson?.lessonType, activeLesson?.videoSourceType, activeLessonProgress?.status, enrollment?.status]);
 
   useEffect(() => {
     if (!activeAttempt || !activeAttempt.expiresAt || activeAttempt.status !== "in_progress") {
@@ -1055,17 +1067,73 @@ export default function StudentSpecialProgramsView({
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Button variant="secondary" disabled={busy} onClick={handleToggleBookmark}>
-                        {isLessonBookmarked ? "★ Bookmarked" : "☆ Bookmark"}
-                      </Button>
-                      {activeLessonProgress?.status !== "completed" && (
-                        <Button disabled={busy} onClick={handleMarkLessonComplete}>
-                          {busy ? "Updating..." : "Mark Completed"}
-                        </Button>
-                      )}
-                    </div>
+                    {(() => {
+                      const reqSec =
+                        activeLesson.durationSeconds > 0
+                          ? Math.max(15, Math.ceil(activeLesson.durationSeconds * ((activeLesson.minWatchPercent || 85) / 100)))
+                          : activeLesson.lessonType === "video"
+                            ? 60
+                            : 45;
+                      const studiedSec = Math.max(activeStudySeconds, activeLessonProgress?.watchedSeconds ?? 0);
+                      const remainingSec = Math.max(0, reqSec - studiedSec);
+                      const canComplete = activeLessonProgress?.status === "completed" || remainingSec === 0;
+
+                      return (
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <Button variant="secondary" disabled={busy} onClick={handleToggleBookmark}>
+                            {isLessonBookmarked ? "★ Bookmarked" : "☆ Bookmark"}
+                          </Button>
+                          {activeLessonProgress?.status !== "completed" && (
+                            <Button
+                              disabled={busy || !canComplete}
+                              onClick={handleMarkLessonComplete}
+                              title={!canComplete ? `Study ${remainingSec}s more before marking complete` : "Mark lesson completed"}
+                            >
+                              {busy
+                                ? "Updating..."
+                                : !canComplete
+                                  ? `Study ${remainingSec}s to Complete`
+                                  : "Mark Completed"}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
+
+                  {activeLessonProgress?.status !== "completed" && (() => {
+                    const reqSec =
+                      activeLesson.durationSeconds > 0
+                        ? Math.max(15, Math.ceil(activeLesson.durationSeconds * ((activeLesson.minWatchPercent || 85) / 100)))
+                        : activeLesson.lessonType === "video"
+                          ? 60
+                          : 45;
+                    const studiedSec = Math.min(reqSec, Math.max(activeStudySeconds, activeLessonProgress?.watchedSeconds ?? 0));
+                    const pct = Math.min(100, Math.round((studiedSec / Math.max(1, reqSec)) * 100));
+                    return (
+                      <div
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          background: pct >= 100 ? "#f0fdf4" : "#f8fafc",
+                          border: "1px solid " + (pct >= 100 ? "#86efac" : C.border),
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 800, color: pct >= 100 ? "#166534" : C.text, marginBottom: 6 }}>
+                          <span>
+                            {pct >= 100
+                              ? "✓ Minimum study time verified — you can now mark this lesson completed."
+                              : "Active Study Verification (pauses automatically if you leave this tab)"}
+                          </span>
+                          <span>{studiedSec}s / {reqSec}s ({pct}%)</span>
+                        </div>
+                        <div style={progressTrack}>
+                          <div style={{ ...progressFill, width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {activeLesson.description && (
                     <p style={{ color: C.muted, marginTop: 0 }}>{activeLesson.description}</p>
