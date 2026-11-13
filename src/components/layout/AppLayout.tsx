@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+﻿import { type ReactNode } from "react";
 import { C, APP_NAME } from "../../lib/theme";
 import {
   LayoutDashboard,
@@ -13,6 +13,7 @@ import {
   CalendarCheck,
   Award,
   Settings,
+  ArrowLeft,
 } from "lucide-react";
 
 const adminNav = [
@@ -23,8 +24,8 @@ const adminNav = [
   { id: "special-programs", label: "Special Programs", icon: Award },
   { id: "groups", label: "Groups", icon: Layers },
   { id: "assessment", label: "Assessment Scheme", icon: Users },
-    { id: "certificates", label: "Certificates", icon: Users },
-    { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "certificates", label: "Certificates", icon: Users },
+  { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "admin-cbt-exams", label: "CBT Results", icon: ClipboardList },
   { id: "settings", label: "Settings", icon: Settings },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -35,9 +36,8 @@ const instructorNav = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "score-entry", label: "Score Entry", icon: Users },
   { id: "cbt-exams", label: "CBT Exams", icon: ClipboardList },
-    { id: "teaching", label: "Teaching", icon: BookOpen },
+  { id: "teaching", label: "Teaching", icon: BookOpen },
   { id: "special-programs", label: "Special Programs", icon: Award },
-  { id: "cbt-exams", label: "CBT Exams", icon: ClipboardList },
   { id: "groups", label: "My Groups", icon: Layers },
   { id: "assignments", label: "Assignments", icon: ClipboardList },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
@@ -61,6 +61,9 @@ export default function AppLayout({
   user,
   page,
   setPage,
+  canGoBack = false,
+  backLabel,
+  onBack,
   onLogout,
   onChangePassword,
   children,
@@ -68,6 +71,9 @@ export default function AppLayout({
   user: any;
   page: string;
   setPage: (page: string) => void;
+  canGoBack?: boolean;
+  backLabel?: string;
+  onBack?: () => void;
   onLogout: () => void;
   onChangePassword?: () => void;
   children: ReactNode;
@@ -179,9 +185,37 @@ export default function AppLayout({
           top:0,
           zIndex:20,
         }}>
-          <div>
-            <div style={{fontWeight:900,color:C.text,fontSize:18}}>{APP_NAME}</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:3}}>{portalName}</div>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                disabled={!canGoBack}
+                title={canGoBack ? (backLabel ? `Go back to ${backLabel}` : "Go back") : "At home screen"}
+                style={{
+                  border:"1px solid " + (canGoBack ? "#bbf7d0" : "#e2e8f0"),
+                  background:canGoBack ? "#f0fdf4" : "#f8fafc",
+                  color:canGoBack ? "#166534" : "#94a3b8",
+                  borderRadius:12,
+                  padding:"9px 14px",
+                  fontWeight:900,
+                  fontSize:13,
+                  cursor:canGoBack ? "pointer" : "default",
+                  display:"flex",
+                  alignItems:"center",
+                  gap:6,
+                  flexShrink:0,
+                }}
+              >
+                <ArrowLeft size={16} />
+                <span>{canGoBack && backLabel ? `Back to ${backLabel}` : "Back"}</span>
+              </button>
+            )}
+
+            <div>
+              <div style={{fontWeight:900,color:C.text,fontSize:18}}>{APP_NAME}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:3}}>{portalName}</div>
+            </div>
           </div>
 
           <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -235,14 +269,3 @@ export default function AppLayout({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import LoginPage from "./pages/auth/LoginPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
@@ -31,6 +31,30 @@ import InstructorAttendance from "./pages/instructor/Attendance";
 import GroupChat from "./pages/common/GroupChat";
 import NotificationsPage from "./pages/common/Notifications";
 import { loadAllData } from "./lib/api";
+
+const PAGE_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  users: "Users",
+  applications: "Applications",
+  courses: "Courses",
+  "special-programs": "Special Programs",
+  groups: "Groups",
+  assessment: "Assessment Scheme",
+  certificates: "Certificates",
+  reports: "Reports",
+  "admin-cbt-exams": "CBT Results",
+  settings: "Settings",
+  "score-entry": "Score Entry",
+  "cbt-exams": "CBT Exams",
+  teaching: "Teaching",
+  assignments: "Assignments",
+  attendance: "Attendance",
+  grades: "Grades",
+  "student-cbt-exams": "CBT Exams",
+  notifications: "Notifications",
+  chat: "Group Chat",
+  "change-password": "Change Password",
+};
 
 function isApproved(value: any) {
   return !value || value === "approved";
@@ -81,7 +105,8 @@ function scopeData(user: any, data: any) {
         .map((l: any) => l.courseId)
         .filter(Boolean),
     ]);
-return {
+
+    return {
       ...data,
       users: (data.users ?? []).filter((u: any) => visibleUserIds.has(u.id)),
       groupStudents: groupMemberships,
@@ -194,6 +219,9 @@ return {
 function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [page, setPage] = useState("dashboard");
+  const [historyStack, setHistoryStack] = useState<string[]>([]);
+  const isPoppingRef = useRef(false);
+
   const [publicPage, setPublicPage] = useState<"login" | "apply" | "verify" | "forgot" | "reset">(() => {
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -210,6 +238,7 @@ function App() {
 
     return params.get("verifyCertificate") === "1" ? "verify" : "login";
   });
+
   const [data, setData] = useState<any>({
     users: [],
     levels: [],
@@ -232,6 +261,61 @@ function App() {
 
   const scopedData = useMemo(() => scopeData(currentUser, data), [currentUser, data]);
 
+  function navigateTo(nextPage: string) {
+    if (!nextPage || nextPage === page) return;
+    setHistoryStack((prev) => [...prev, page]);
+    setPage(nextPage);
+    if (!isPoppingRef.current) {
+      window.history.pushState({ intizarPage: nextPage }, "");
+    }
+  }
+
+  function handleGoBack() {
+    if (historyStack.length > 0) {
+      const previousPage = historyStack[historyStack.length - 1];
+      setHistoryStack((prev) => prev.slice(0, -1));
+      setPage(previousPage);
+    } else if (page !== "dashboard") {
+      setPage("dashboard");
+    }
+  }
+
+  function navigatePublic(nextPublic: "login" | "apply" | "verify" | "forgot" | "reset") {
+    setPublicPage(nextPublic);
+    if (nextPublic !== "login") {
+      window.history.pushState({ intizarPublic: nextPublic }, "");
+    }
+  }
+
+  useEffect(() => {
+    function onPopState(event: PopStateEvent) {
+      isPoppingRef.current = true;
+      if (currentUser) {
+        const target = event.state?.intizarPage;
+        if (target) {
+          setPage(target);
+          setHistoryStack((prev) => (prev.length > 0 ? prev.slice(0, -1) : []));
+        } else {
+          setHistoryStack((prev) => {
+            if (prev.length > 0) {
+              setPage(prev[prev.length - 1]);
+              return prev.slice(0, -1);
+            }
+            setPage("dashboard");
+            return [];
+          });
+        }
+      } else {
+        const targetPublic = event.state?.intizarPublic || "login";
+        setPublicPage(targetPublic);
+      }
+      isPoppingRef.current = false;
+    }
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [currentUser]);
+
   async function refreshData() {
     const fresh = await loadAllData();
     setData(fresh);
@@ -240,6 +324,8 @@ function App() {
   async function handleLogin(user: any) {
     setCurrentUser(user);
     setPage("dashboard");
+    setHistoryStack([]);
+    window.history.replaceState({ intizarPage: "dashboard" }, "");
     await refreshData();
   }
 
@@ -249,27 +335,27 @@ function App() {
 
   if (!currentUser) {
     if (publicPage === "reset") {
-      return <ResetPasswordPage onBackToLogin={() => setPublicPage("login")} />;
+      return <ResetPasswordPage onBackToLogin={() => navigatePublic("login")} />;
     }
 
     if (publicPage === "forgot") {
-      return <ForgotPasswordPage onBackToLogin={() => setPublicPage("login")} />;
+      return <ForgotPasswordPage onBackToLogin={() => navigatePublic("login")} />;
     }
 
     if (publicPage === "apply") {
-      return <ApplicationForm onBackToLogin={() => setPublicPage("login")} />;
+      return <ApplicationForm onBackToLogin={() => navigatePublic("login")} />;
     }
 
     if (publicPage === "verify") {
-      return <CertificateVerify onBackToLogin={() => setPublicPage("login")} />;
+      return <CertificateVerify onBackToLogin={() => navigatePublic("login")} />;
     }
 
     return (
       <LoginPage
         onLogin={handleLogin}
-        onApply={() => setPublicPage("apply")}
-        onVerify={() => setPublicPage("verify")}
-        onForgotPassword={() => setPublicPage("forgot")}
+        onApply={() => navigatePublic("apply")}
+        onVerify={() => navigatePublic("verify")}
+        onForgotPassword={() => navigatePublic("forgot")}
       />
     );
   }
@@ -282,7 +368,7 @@ function App() {
       if (page === "assignments") return <StudentAssignments user={currentUser} data={scopedData} setData={setData} />;
       if (page === "attendance") return <StudentAttendance user={currentUser} data={scopedData} />;
       if (page === "grades") return <StudentGrades user={currentUser} data={scopedData} />;
-    if (page === "student-cbt-exams") return <StudentCbtExamsPage data={scopedData} />;
+      if (page === "student-cbt-exams") return <StudentCbtExamsPage data={scopedData} />;
       if (page === "notifications") return <NotificationsPage user={currentUser} data={scopedData} setData={setData} />;
       if (page === "chat") return <GroupChat user={currentUser} data={scopedData} setData={setData} />;
       return <StudentDashboard user={currentUser} data={scopedData} />;
@@ -290,10 +376,9 @@ function App() {
 
     if (currentUser.role === "instructor") {
       if (page === "score-entry") return <InstructorScoreEntry user={currentUser} data={scopedData} />;
-    if (page === "cbt-exams") return <InstructorCbtExamsPage data={scopedData} />;
+      if (page === "cbt-exams") return <InstructorCbtExamsPage data={scopedData} />;
       if (page === "teaching") return <InstructorTeaching user={currentUser} data={scopedData} setData={setData} />;
       if (page === "special-programs") return <SpecialProgramsHub user={currentUser} data={scopedData} />;
-    if (page === "cbt-exams") return <InstructorCbtExamsPage data={scopedData} />;
       if (page === "groups") return <InstructorGroups user={currentUser} data={scopedData} />;
       if (page === "assignments") return <InstructorAssignments user={currentUser} data={scopedData} setData={setData} />;
       if (page === "attendance") return <InstructorAttendance user={currentUser} data={scopedData} setData={setData} />;
@@ -320,13 +405,23 @@ function App() {
     return <h1>{page}</h1>;
   }
 
+  const canGoBack = historyStack.length > 0 || page !== "dashboard";
+  const previousPageId = historyStack.length > 0 ? historyStack[historyStack.length - 1] : (page !== "dashboard" ? "dashboard" : "");
+  const backLabel = previousPageId ? (PAGE_LABELS[previousPageId] || previousPageId) : undefined;
+
   return (
     <AppLayout
       user={currentUser}
       page={page}
-      setPage={setPage}
-      onChangePassword={() => setPage("change-password")}
-      onLogout={() => setCurrentUser(null)}
+      setPage={navigateTo}
+      canGoBack={canGoBack}
+      backLabel={backLabel}
+      onBack={handleGoBack}
+      onChangePassword={() => navigateTo("change-password")}
+      onLogout={() => {
+        setCurrentUser(null);
+        setHistoryStack([]);
+      }}
     >
       {renderPage()}
     </AppLayout>
@@ -334,21 +429,3 @@ function App() {
 }
 
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
