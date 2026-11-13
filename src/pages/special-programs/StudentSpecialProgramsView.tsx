@@ -1087,7 +1087,7 @@ export default function StudentSpecialProgramsView({
                             <Button
                               disabled={busy || !canComplete}
                               onClick={handleMarkLessonComplete}
-                              title={!canComplete ? `Study ${remainingSec}s more before marking complete` : "Mark lesson completed"}
+                              
                             >
                               {busy
                                 ? "Updating..."
