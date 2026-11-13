@@ -4,18 +4,18 @@ import { APP_NAME } from "../../lib/theme";
 import { signIn } from "../../lib/api";
 
 const CAROUSEL_PHOTOS = [
-  "/src/assets/IMG-20261113-WA0002.jpg",
-  "/src/assets/IMG-20261113-WA0003.jpg",
-  "/src/assets/IMG-20261113-WA0004.jpg",
-  "/src/assets/IMG-20261113-WA0005.jpg",
-  "/src/assets/IMG-20261113-WA0006.jpg",
-  "/src/assets/IMG-20261113-WA0007.jpg",
-  "/src/assets/IMG-20261113-WA0008.jpg",
-  "/src/assets/IMG-20261113-WA0009.jpg",
-  "/src/assets/FB_IMG_1794583138954.jpg",
-  "/src/assets/FB_IMG_1794583344967.jpg",
-  "/src/assets/FB_IMG_1794583377573.jpg",
-  "/src/assets/FB_IMG_1794583460982.jpg",
+  "/IMG-20261113-WA0002.jpg",
+  "/IMG-20261113-WA0003.jpg",
+  "/IMG-20261113-WA0004.jpg",
+  "/IMG-20261113-WA0005.jpg",
+  "/IMG-20261113-WA0006.jpg",
+  "/IMG-20261113-WA0007.jpg",
+  "/IMG-20261113-WA0008.jpg",
+  "/IMG-20261113-WA0009.jpg",
+  "/FB_IMG_1794583138954.jpg",
+  "/FB_IMG_1794583344967.jpg",
+  "/FB_IMG_1794583377573.jpg",
+  "/FB_IMG_1794583460982.jpg",
 ];
 
 export default function LoginPage({ onLogin, onApply, onVerify, onForgotPassword }: { onLogin: (user: any) => void; onApply?: () => void; onVerify?: () => void; onForgotPassword?: () => void }) {
@@ -82,7 +82,7 @@ export default function LoginPage({ onLogin, onApply, onVerify, onForgotPassword
             style={{
               position: "absolute",
               inset: 0,
-              backgroundImage: `linear-gradient(135deg, rgba(2, 44, 34, 0.94) 0%, rgba(6, 78, 59, 0.88) 100%), url(${photo})`,
+              backgroundImage: `linear-gradient(135deg, rgba(2, 44, 34, 0.92) 0%, rgba(6, 78, 59, 0.85) 100%), url(${photo})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
               opacity: index === currentPhotoIndex ? 1 : 0,
@@ -109,13 +109,13 @@ export default function LoginPage({ onLogin, onApply, onVerify, onForgotPassword
           />
           <div>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, letterSpacing: "-0.5px" }}>{APP_NAME}</h2>
-            <p style={{ margin: 0, fontSize: 12, color: "#a7f3d0", maxWidth: 360, lineHeight: 1.4 }}>
+            <p style={{ margin: 0, fontSize: 12, color: "#a7f3d0", maxWidth: 380, lineHeight: 1.4 }}>
               A structured, role-based Learning Management System for students, instructors, and administrators.
             </p>
           </div>
         </div>
 
-        {/* Center Main Headline */}
+        {/* Center Main Headline & Highlights */}
         <div style={{ position: "relative", zIndex: 2, margin: "32px 0" }}>
           <h1 style={{ fontSize: 46, lineHeight: 1.1, margin: "0 0 16px", fontWeight: 900, letterSpacing: "-1.5px" }}>
             Building Knowledge.<br />
@@ -127,17 +127,17 @@ export default function LoginPage({ onLogin, onApply, onVerify, onForgotPassword
           </p>
 
           {/* Three Feature Highlights */}
-          <div style={{ display: "flex", alignItems: "center", gap: 24, fontSize: 13, fontWeight: 600, color: "#a7f3d0" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 16 }}>📚</span> Structured Learning
+          <div style={{ display: "flex", alignItems: "center", gap: 20, fontSize: 13, fontWeight: 600, color: "#a7f3d0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span>📚</span> Structured Learning
             </div>
             <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.2)" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 16 }}>📈</span> Track Your Progress
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span>📈</span> Track Your Progress
             </div>
             <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.2)" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 16 }}>🛡️</span> Verified Certificates
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span>🛡️</span> Verified Certificates
             </div>
           </div>
         </div>
@@ -308,15 +308,15 @@ export default function LoginPage({ onLogin, onApply, onVerify, onForgotPassword
 
           <div style={{ display: "grid", gap: 10 }}>
             <Button type="submit" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Signing in..." : "🚪 Sign In"}
             </Button>
 
             <Button type="button" variant="secondary" onClick={onApply}>
-              Apply for Admission
+              🎓 Apply for Admission
             </Button>
 
             <Button type="button" variant="secondary" onClick={onVerify}>
-              Verify Certificate
+              🛡️ Verify Certificate
             </Button>
           </div>
 
