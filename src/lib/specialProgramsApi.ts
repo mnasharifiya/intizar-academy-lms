@@ -147,6 +147,8 @@ export interface ProgramEnrollment {
   progressPercent: number;
   lastAccessedAt: string | null;
   lastLessonId: string | null;
+  studentName?: string | null;
+  studentEmail?: string | null;
 }
 
 export interface LessonProgressRecord {
