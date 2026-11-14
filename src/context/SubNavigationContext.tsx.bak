@@ -1,0 +1,137 @@
+﻿import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+export interface SubNavStep {
+  id: string;
+  label?: string;
+  restore: () => void;
+}
+
+interface SubNavigationContextValue {
+  hasSubHistory: boolean;
+  currentBackLabel?: string;
+  pushSubStep: (step: SubNavStep) => void;
+  popSubStep: (id?: string) => void;
+  goBackSubStep: () => boolean;
+  clearSubSteps: () => void;
+}
+
+const SubNavigationContext = createContext<SubNavigationContextValue | null>(null);
+
+export const SubNavigationProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const stackRef = useRef<SubNavStep[]>([]);
+  const ignoreNextPopCountRef = useRef(0);
+  const [stackSnapshot, setStackSnapshot] = useState<SubNavStep[]>([]);
+
+  const syncSnapshot = useCallback(() => {
+    setStackSnapshot([...stackRef.current]);
+  }, []);
+
+  const pushSubStep = useCallback(
+    (step: SubNavStep) => {
+      const top = stackRef.current[stackRef.current.length - 1];
+      if (top && top.id === step.id) {
+        stackRef.current[stackRef.current.length - 1] = step;
+        syncSnapshot();
+        return;
+      }
+
+      stackRef.current.push(step);
+      window.history.pushState(
+        { __intizarSubNav: true, depth: stackRef.current.length, id: step.id },
+        ""
+      );
+      syncSnapshot();
+    },
+    [syncSnapshot]
+  );
+
+  const popSubStep = useCallback(
+    (id?: string) => {
+      if (stackRef.current.length === 0) return;
+
+      if (id) {
+        const idx = stackRef.current.map((s) => s.id).lastIndexOf(id);
+        if (idx === -1) return;
+        const removedCount = stackRef.current.length - idx;
+        stackRef.current.splice(idx, removedCount);
+        syncSnapshot();
+        ignoreNextPopCountRef.current += removedCount;
+        window.history.go(-removedCount);
+        return;
+      }
+
+      stackRef.current.pop();
+      syncSnapshot();
+      ignoreNextPopCountRef.current += 1;
+      window.history.back();
+    },
+    [syncSnapshot]
+  );
+
+  const goBackSubStep = useCallback((): boolean => {
+    if (stackRef.current.length === 0) return false;
+    window.history.back();
+    return true;
+  }, []);
+
+  const clearSubSteps = useCallback(() => {
+    const count = stackRef.current.length;
+    if (count === 0) return;
+    stackRef.current = [];
+    syncSnapshot();
+    ignoreNextPopCountRef.current += count;
+    window.history.go(-count);
+  }, [syncSnapshot]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (ignoreNextPopCountRef.current > 0) {
+        ignoreNextPopCountRef.current -= 1;
+        return;
+      }
+
+      const step = stackRef.current.pop();
+      if (step) {
+        syncSnapshot();
+        step.restore();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [syncSnapshot]);
+
+  const topStep = stackSnapshot[stackSnapshot.length - 1];
+
+  return (
+    <SubNavigationContext.Provider
+      value={{
+        hasSubHistory: stackSnapshot.length > 0,
+        currentBackLabel: topStep?.label,
+        pushSubStep,
+        popSubStep,
+        goBackSubStep,
+        clearSubSteps,
+      }}
+    >
+      {children}
+    </SubNavigationContext.Provider>
+  );
+};
+
+export function useSubNavigation(): SubNavigationContextValue {
+  const ctx = useContext(SubNavigationContext);
+  if (!ctx) {
+    throw new Error("useSubNavigation must be used inside <SubNavigationProvider>");
+  }
+  return ctx;
+}
