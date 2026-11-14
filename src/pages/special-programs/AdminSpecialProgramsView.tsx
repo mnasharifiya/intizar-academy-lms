@@ -115,13 +115,28 @@ export default function AdminSpecialProgramsView({
     return map;
   }, [data?.users, memberProfiles]);
 
-  const instructorCandidates = useMemo(
-    () =>
-      (data?.users ?? []).filter(
-        (u: any) => (u.role === "instructor" || u.role === "admin") && u.isActive !== false
-      ),
-    [data?.users]
-  );
+  const instructorCandidates = useMemo(() => {
+    const byId = new Map<string, any>();
+    (data?.users ?? []).forEach((u: any) => {
+      if ((u.role === "instructor" || u.role === "admin") && u.isActive !== false) {
+        byId.set(u.id, u);
+      }
+    });
+    (memberProfiles ?? []).forEach((p: any) => {
+      const role = String(p.role || "").toLowerCase();
+      if ((role === "instructor" || role === "admin") && !byId.has(p.id)) {
+        byId.set(p.id, {
+          id: p.id,
+          name: p.full_name || p.email || p.id,
+          email: p.email || "",
+          role,
+        });
+      }
+    });
+    return Array.from(byId.values()).sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || ""))
+    );
+  }, [data?.users, memberProfiles]);
 
   const studentCandidates = useMemo(
     () => (data?.users ?? []).filter((u: any) => u.role === "student" && u.isActive !== false),
@@ -353,6 +368,41 @@ export default function AdminSpecialProgramsView({
       await refreshSelectedDetails(selectedProgram.id);
     } catch (err: any) {
       alert(err?.message || "Could not create course.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [editCourseTitle, setEditCourseTitle] = useState("");
+  const [editCourseInstructorId, setEditCourseInstructorId] = useState("");
+  const [editCourseOrder, setEditCourseOrder] = useState("1");
+
+  function startEditCourse(course: ProgramCourse) {
+    setEditingCourseId(course.id);
+    setEditCourseTitle(course.title);
+    setEditCourseInstructorId(course.instructorId || "");
+    setEditCourseOrder(String(course.displayOrder ?? 1));
+  }
+
+  async function handleSaveCourseEdit(courseId: string) {
+    if (!selectedProgram) return;
+    if (!editCourseTitle.trim() || !editCourseInstructorId) {
+      alert("Course title and assigned instructor are required.");
+      return;
+    }
+    try {
+      setBusy(true);
+      await updateProgramCourse(courseId, {
+        title: editCourseTitle.trim(),
+        instructorId: editCourseInstructorId,
+        displayOrder: Number(editCourseOrder) || 1,
+      });
+      setEditingCourseId(null);
+      await refreshOverview();
+      await refreshSelectedDetails(selectedProgram.id);
+    } catch (err: any) {
+      alert(err?.message || "Could not update course.");
     } finally {
       setBusy(false);
     }
@@ -929,27 +979,42 @@ export default function AdminSpecialProgramsView({
                   <div style={{ display: "grid", gap: 10 }}>
                     {programCourses.map(course => {
                       const inst = allUsersMap[course.instructorId];
+                      const instLabel =
+                        inst?.name ||
+                        course.instructorName ||
+                        course.instructorEmail ||
+                        course.instructorId;
+                      const isEditing = editingCourseId === course.id;
                       return (
-                        <div key={course.id} style={rowBox}>
-                          <div>
-                            <div style={{ fontWeight: 800, color: C.text }}>
-                              #{course.displayOrder} — {course.title}
+                        <div key={course.id} style={{ ...rowBox, flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                            <div>
+                              <div style={{ fontWeight: 800, color: C.text }}>
+                                #{course.displayOrder} — {course.title}
+                              </div>
+                              <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
+                                Instructor: <strong>{instLabel}</strong>
+                                {inst?.email || course.instructorEmail ?  () : ""} • Status:{" "}
+                                <strong>{course.status.toUpperCase()}</strong> •{" "}
+                                {course.isRequired ? "Required" : "Elective"}
+                              </div>
                             </div>
-                            <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
-                              Instructor: {inst?.name || course.instructorId} • Status:{" "}
-                              <strong>{course.status.toUpperCase()}</strong> •{" "}
-                              {course.isRequired ? "Required" : "Elective"}
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {onOpenCourseStudio && (
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                               <Button
                                 variant="secondary"
-                                onClick={() => onOpenCourseStudio(course.id)}
+                                disabled={busy}
+                                onClick={() => (isEditing ? setEditingCourseId(null) : startEditCourse(course))}
                               >
-                                Open Studio
+                                {isEditing ? "Cancel Edit" : "Edit / Change Instructor"}
                               </Button>
-                            )}
+                              {onOpenCourseStudio && (
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => onOpenCourseStudio(course.id)}
+                                >
+                                  Open Studio
+                                </Button>
+                              )}
                             {isMainAdmin && course.status !== "published" && (
                               <Button
                                 variant="secondary"
@@ -978,6 +1043,52 @@ export default function AdminSpecialProgramsView({
                               </Button>
                             )}
                           </div>
+                          </div>
+
+                          {isEditing && (
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "minmax(200px, 2fr) minmax(220px, 2fr) 90px auto",
+                                gap: 10,
+                                alignItems: "end",
+                                paddingTop: 10,
+                                borderTop: "1px solid rgba(15, 23, 42, 0.08)",
+                              }}
+                            >
+                              <div>
+                                <label style={labelStyle}>Course Title</label>
+                                <Input value={editCourseTitle} onChange={setEditCourseTitle} />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Assigned Instructor</label>
+                                <select
+                                  value={editCourseInstructorId}
+                                  onChange={e => setEditCourseInstructorId(e.target.value)}
+                                  style={selectStyle}
+                                >
+                                  <option value="">Select Course Instructor...</option>
+                                  {instructorCandidates.map((u: any) => (
+                                    <option key={u.id} value={u.id}>
+                                      {u.name} ({u.email})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Order</label>
+                                <Input type="number" value={editCourseOrder} onChange={setEditCourseOrder} />
+                              </div>
+                              <div>
+                                <Button
+                                  disabled={busy}
+                                  onClick={() => handleSaveCourseEdit(course.id)}
+                                >
+                                  {busy ? "Saving..." : "Save Changes"}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

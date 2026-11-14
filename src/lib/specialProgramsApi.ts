@@ -90,6 +90,8 @@ export interface ProgramCourse {
   status: SpecialProgramCourseStatus;
   createdAt: string;
   updatedAt: string;
+  instructorName?: string | null;
+  instructorEmail?: string | null;
 }
 
 export interface ProgramSection {
@@ -361,6 +363,25 @@ function mapInstructorAssignment(row: any): ProgramInstructorAssignment {
   };
 }
 
+async function attachCourseInstructorProfiles(courses: ProgramCourse[]): Promise<ProgramCourse[]> {
+  const ids = Array.from(new Set(courses.map(c => c.instructorId).filter(Boolean)));
+  if (ids.length === 0) return courses;
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", ids);
+  const byId = new Map<string, { full_name?: string | null; email?: string | null }>();
+  (data || []).forEach((p: any) => byId.set(p.id, p));
+  return courses.map(c => {
+    const prof = byId.get(c.instructorId);
+    return {
+      ...c,
+      instructorName: c.instructorName ?? prof?.full_name ?? null,
+      instructorEmail: c.instructorEmail ?? prof?.email ?? null,
+    };
+  });
+}
+
 function mapCourse(row: any): ProgramCourse {
   return {
     id: row.id,
@@ -624,7 +645,7 @@ export async function loadSpecialProgramsOverviewList() {
 
   return {
     programs: (programsRes.data ?? []).map(mapProgram),
-    courses: (coursesRes.data ?? []).map(mapCourse),
+    courses: await attachCourseInstructorProfiles((coursesRes.data ?? []).map(mapCourse)),
     leads: await attachInstructorProfiles(await attachInstructorProfiles((leadsRes.data ?? []).map(mapInstructorAssignment))),
     enrollments: (enrollmentsRes.data ?? []).map(mapEnrollment),
     certificates: (certsRes.data ?? []).map(mapCertificate),
@@ -982,7 +1003,7 @@ export async function loadProgramAnalyticsBundle(programId: string) {
 
   return {
     program: mapProgram(programRes.data),
-    courses: (coursesRes.data ?? []).map(mapCourse),
+    courses: await attachCourseInstructorProfiles((coursesRes.data ?? []).map(mapCourse)),
     leads: await attachInstructorProfiles(await attachInstructorProfiles((leadsRes.data ?? []).map(mapInstructorAssignment))),
     enrollments,
     lessonProgress: (progressRes.data ?? []).map(mapLessonProgress),
@@ -1353,7 +1374,7 @@ export async function loadStudentProgramWorkspace(programId: string) {
   if (certRes.error) throw certRes.error;
   if (discussionsRes.error) throw discussionsRes.error;
 
-  const courses = (coursesRes.data ?? []).map(mapCourse);
+  const courses = await attachCourseInstructorProfiles((coursesRes.data ?? []).map(mapCourse));
   const courseIds = courses.map(c => c.id);
 
   let prerequisites: Array<{ courseId: string; prerequisiteCourseId: string }> = [];
