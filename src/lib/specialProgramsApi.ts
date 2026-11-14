@@ -328,6 +328,25 @@ function mapProgram(row: any): SpecialProgram {
   };
 }
 
+async function attachInstructorProfiles(assignments: ProgramInstructorAssignment[]): Promise<ProgramInstructorAssignment[]> {
+  const ids = Array.from(new Set(assignments.map(a => a.instructorId).filter(Boolean)));
+  if (ids.length === 0) return assignments;
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", ids);
+  const byId = new Map<string, { full_name?: string | null; email?: string | null }>();
+  (data || []).forEach((p: any) => byId.set(p.id, p));
+  return assignments.map(a => {
+    const prof = byId.get(a.instructorId);
+    return {
+      ...a,
+      instructorName: a.instructorName ?? prof?.full_name ?? null,
+      instructorEmail: a.instructorEmail ?? prof?.email ?? null,
+    };
+  });
+}
+
 function mapInstructorAssignment(row: any): ProgramInstructorAssignment {
   return {
     id: row.id,
@@ -592,7 +611,7 @@ export async function loadSpecialProgramsOverviewList() {
   const [programsRes, coursesRes, leadsRes, enrollmentsRes, certsRes] = await Promise.all([
     supabase.from("special_programs").select("*").order("created_at", { ascending: false }),
     supabase.from("program_courses").select("*").order("display_order", { ascending: true }),
-    supabase.from("program_instructors").select("*, profiles!program_instructors_instructor_id_fkey(full_name, email)").eq("is_active", true),
+    supabase.from("program_instructors").select("*").eq("is_active", true),
     supabase.from("program_enrollments").select("*").order("enrolled_at", { ascending: false }),
     supabase.from("program_certificates").select("*").order("issued_at", { ascending: false }),
   ]);
@@ -905,7 +924,7 @@ export async function loadProgramAnalyticsBundle(programId: string) {
   ] = await Promise.all([
     supabase.from("special_programs").select("*").eq("id", programId).single(),
     supabase.from("program_courses").select("*").eq("program_id", programId).order("display_order"),
-    supabase.from("program_instructors").select("*, profiles!program_instructors_instructor_id_fkey(full_name, email)").eq("program_id", programId),
+    supabase.from("program_instructors").select("*").eq("program_id", programId),
     supabase.from("program_enrollments").select("*").eq("program_id", programId).order("enrolled_at", { ascending: false }),
     supabase
       .from("lesson_progress")
