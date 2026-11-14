@@ -625,7 +625,7 @@ export async function loadSpecialProgramsOverviewList() {
   return {
     programs: (programsRes.data ?? []).map(mapProgram),
     courses: (coursesRes.data ?? []).map(mapCourse),
-    leads: await attachInstructorProfiles((leadsRes.data ?? []).map(mapInstructorAssignment)),
+    leads: await attachInstructorProfiles(await attachInstructorProfiles((leadsRes.data ?? []).map(mapInstructorAssignment))),
     enrollments: (enrollmentsRes.data ?? []).map(mapEnrollment),
     certificates: (certsRes.data ?? []).map(mapCertificate),
   };
@@ -983,7 +983,7 @@ export async function loadProgramAnalyticsBundle(programId: string) {
   return {
     program: mapProgram(programRes.data),
     courses: (coursesRes.data ?? []).map(mapCourse),
-    leads: await attachInstructorProfiles((leadsRes.data ?? []).map(mapInstructorAssignment)),
+    leads: await attachInstructorProfiles(await attachInstructorProfiles((leadsRes.data ?? []).map(mapInstructorAssignment))),
     enrollments,
     lessonProgress: (progressRes.data ?? []).map(mapLessonProgress),
     attempts,
