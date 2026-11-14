@@ -994,7 +994,7 @@ export default function AdminSpecialProgramsView({
                               </div>
                               <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
                                 Instructor: <strong>{instLabel}</strong>
-                                {inst?.email || course.instructorEmail ?  () : ""} • Status:{" "}
+                                {(inst?.email || course.instructorEmail) ? ` (${inst?.email || course.instructorEmail})` : ""} • Status:{" "}
                                 <strong>{course.status.toUpperCase()}</strong> •{" "}
                                 {course.isRequired ? "Required" : "Elective"}
                               </div>
