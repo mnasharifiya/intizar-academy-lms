@@ -122,7 +122,7 @@ export default function AdminSpecialProgramsView({
         byId.set(u.id, u);
       }
     });
-    (memberProfiles ?? []).forEach((p: any) => {
+    Object.values(memberProfiles ?? {}).forEach((p: any) => {
       const role = String(p.role || "").toLowerCase();
       if ((role === "instructor" || role === "admin") && !byId.has(p.id)) {
         byId.set(p.id, {
