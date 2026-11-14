@@ -592,7 +592,7 @@ export async function loadSpecialProgramsOverviewList() {
   const [programsRes, coursesRes, leadsRes, enrollmentsRes, certsRes] = await Promise.all([
     supabase.from("special_programs").select("*").order("created_at", { ascending: false }),
     supabase.from("program_courses").select("*").order("display_order", { ascending: true }),
-    supabase.from("program_instructors").select("*, profiles:instructor_id(full_name, email)").eq("is_active", true),
+    supabase.from("program_instructors").select("*, profiles!program_instructors_instructor_id_fkey(full_name, email)").eq("is_active", true),
     supabase.from("program_enrollments").select("*").order("enrolled_at", { ascending: false }),
     supabase.from("program_certificates").select("*").order("issued_at", { ascending: false }),
   ]);
@@ -905,7 +905,7 @@ export async function loadProgramAnalyticsBundle(programId: string) {
   ] = await Promise.all([
     supabase.from("special_programs").select("*").eq("id", programId).single(),
     supabase.from("program_courses").select("*").eq("program_id", programId).order("display_order"),
-    supabase.from("program_instructors").select("*, profiles:instructor_id(full_name, email)").eq("program_id", programId),
+    supabase.from("program_instructors").select("*, profiles!program_instructors_instructor_id_fkey(full_name, email)").eq("program_id", programId),
     supabase.from("program_enrollments").select("*").eq("program_id", programId).order("enrolled_at", { ascending: false }),
     supabase
       .from("lesson_progress")
