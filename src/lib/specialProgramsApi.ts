@@ -74,6 +74,8 @@ export interface ProgramInstructorAssignment {
   isActive: boolean;
   assignedBy: string;
   assignedAt: string;
+  instructorName?: string | null;
+  instructorEmail?: string | null;
 }
 
 export interface ProgramCourse {
@@ -335,6 +337,8 @@ function mapInstructorAssignment(row: any): ProgramInstructorAssignment {
     isActive: Boolean(row.is_active),
     assignedBy: row.assigned_by,
     assignedAt: row.assigned_at,
+    instructorName: row.full_name ?? row.profiles?.full_name ?? null,
+    instructorEmail: row.email ?? row.profiles?.email ?? null,
   };
 }
 
@@ -588,7 +592,7 @@ export async function loadSpecialProgramsOverviewList() {
   const [programsRes, coursesRes, leadsRes, enrollmentsRes, certsRes] = await Promise.all([
     supabase.from("special_programs").select("*").order("created_at", { ascending: false }),
     supabase.from("program_courses").select("*").order("display_order", { ascending: true }),
-    supabase.from("program_instructors").select("*").eq("is_active", true),
+    supabase.from("program_instructors").select("*, profiles:instructor_id(full_name, email)").eq("is_active", true),
     supabase.from("program_enrollments").select("*").order("enrolled_at", { ascending: false }),
     supabase.from("program_certificates").select("*").order("issued_at", { ascending: false }),
   ]);
@@ -901,7 +905,7 @@ export async function loadProgramAnalyticsBundle(programId: string) {
   ] = await Promise.all([
     supabase.from("special_programs").select("*").eq("id", programId).single(),
     supabase.from("program_courses").select("*").eq("program_id", programId).order("display_order"),
-    supabase.from("program_instructors").select("*").eq("program_id", programId),
+    supabase.from("program_instructors").select("*, profiles:instructor_id(full_name, email)").eq("program_id", programId),
     supabase.from("program_enrollments").select("*").eq("program_id", programId).order("enrolled_at", { ascending: false }),
     supabase
       .from("lesson_progress")

@@ -800,10 +800,10 @@ export default function AdminSpecialProgramsView({
                       <div key={lead.id} style={rowBox}>
                         <div>
                           <div style={{ fontWeight: 800, color: C.text }}>
-                            {person?.name || lead.instructorId}
+                            {person?.name || lead.instructorName || lead.instructorEmail || lead.instructorId}
                           </div>
                           <div style={{ fontSize: 12, color: C.muted }}>
-                            {person?.email || ""} • Role: {lead.role.replace("_", " ")}
+                            {person?.email || lead.instructorEmail || ""} • Role: {lead.role.replace("_", " ")}
                           </div>
                         </div>
                         {isMainAdmin && (
