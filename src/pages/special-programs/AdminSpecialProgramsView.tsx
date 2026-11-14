@@ -1024,7 +1024,7 @@ export default function AdminSpecialProgramsView({
                       <div key={enr.id} style={rowBox}>
                         <div>
                           <div style={{ fontWeight: 800, color: C.text }}>
-                            {student?.name || enr.studentId}
+                            {student?.name || enr.studentName || enr.studentEmail || enr.studentId}
                           </div>
                           <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
                             Reg No: {student?.reg_no || student?.regNo || "-"} • Status:{" "}

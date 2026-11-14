@@ -416,6 +416,8 @@ function mapEnrollment(row: any): ProgramEnrollment {
     progressPercent: Number(row.progress_percent ?? 0),
     lastAccessedAt: row.last_accessed_at ?? null,
     lastLessonId: row.last_lesson_id ?? null,
+    studentName: row.full_name ?? row.name ?? row.profiles?.full_name ?? null,
+    studentEmail: row.email ?? row.profiles?.email ?? null,
   };
 }
 
